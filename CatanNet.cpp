@@ -56,6 +56,8 @@ NODE_ARRAY,
 ROAD_ARRAY,
 ASK_ROAD_ARRAY,
 ASK_NODE_ARRAY,
+ASK_BANK_RESURS,
+ASK_PLAYER_RESURS,
 INFO_BANK_RESURS,
 LAST_VILLAGE,
 PLAYER_RESURS
@@ -78,6 +80,8 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::ROAD_ARRAY,	        "$CATAN$ ROAD_ARRAY"},
 	{NET_COMMAND::ASK_NODE_ARRAY,	    "$CATAN$ ASK_NODE_ARRAY"},
 	{NET_COMMAND::ASK_ROAD_ARRAY,	    "$CATAN$ ASK_ROAD_ARRAY"},
+	{NET_COMMAND::ASK_BANK_RESURS,	    "$CATAN$ ASK_BANK_RESURS"},
+	{NET_COMMAND::ASK_PLAYER_RESURS,	"$CATAN$ ASK_PLAYER_RESURS"},
 	{NET_COMMAND::INFO_BANK_RESURS,	    "$CATAN$ INFO_BANK_RESURS"},
 	{NET_COMMAND::LAST_VILLAGE,	        "$CATAN$ LAST_VILLAGE"},
 	{NET_COMMAND::PLAYER_RESURS,	    "$CATAN$ PLAYER_RESURS"},
@@ -143,6 +147,24 @@ int i = 0;
 	   }
 
 	return;
+}
+
+//========================================================================
+// вызывается при отмене части ходя для восстановления состояния
+// запрос на пересылку от сервера банка ресурсов и ресурсов игроков
+//========================================================================
+void Ask_Send_Resurs()
+{
+	char msg[256];
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_BANK_RESURS].c_str());
+	itoa(player_num, &msg[50], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_PLAYER_RESURS].c_str());
+	itoa(player_num, &msg[50], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+	Sleep(10);
 }
 
 //========================================================
@@ -516,6 +538,8 @@ void Check_Connections(void)
 			strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_PLAYER].c_str());
 			_itoa(Counter + 1, &msg[50], 10);
 			send(newConnection, msg, sizeof(msg), NULL);
+			_itoa(i, msg, 10);  strcat_s(msg,"  -   номер соединения ");
+			send(newConnection, msg, sizeof(msg), NULL);
 
 			//передача сформированного поля - гексы и номера - остальное клиент сформирует
 			int gecs_num = 0;
@@ -793,7 +817,7 @@ void ServerClientStreamFunc(int index)
 			{
 				int pl = atoi(&msg[50]);
 
-				srand(time(0));
+				//srand(time(0));
 				int dice2 = rand() % 6 + 1  + rand() % 6 + 1;   //2 кубика
 
 				//сообщить всем результат броска кубика - не системное ??  простое оповещение 
@@ -808,7 +832,7 @@ void ServerClientStreamFunc(int index)
 				continue;
 			}
 
-			if (Command == NET_COMMAND::INFO_BANK_RESURS)
+			if (Command == NET_COMMAND::INFO_BANK_RESURS)  //серверу прислали - он все дублирует
 			{
 				int* intPtr = (int*)&msg[50];
 				memcpy(CARD_Bank, &msg[50], 10 * sizeof(int));
@@ -816,7 +840,28 @@ void ServerClientStreamFunc(int index)
 				continue;
 			}
 
-			if (Command == NET_COMMAND::PLAYER_RESURS)
+			if (Command == NET_COMMAND::ASK_BANK_RESURS)    //у сервера попросил клиент и только ему шлем
+			{
+				int pl = atoi(&msg[50]);
+				//общий банк карточек
+				strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
+				memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
+				send(Connections[pl-1], msg, sizeof(msg), NULL);
+				continue;
+			}
+
+			if (Command == NET_COMMAND::ASK_PLAYER_RESURS)    //у сервера попросил игрок обновить и только ему шлем
+			{
+				int pl = atoi(&msg[50]);
+				//банк карточек игрока
+				strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
+				_itoa(pl, &msg[50], 10);                                 //номер игрока
+				memcpy(&msg[54], player[pl].resurs, 10 * sizeof(int));   //карточки
+				send(Connections[pl - 1], msg, sizeof(msg), NULL);
+				continue;
+			}
+
+			if (Command == NET_COMMAND::PLAYER_RESURS)         //сервер получил банк игрока и дублирует всем
 			{
 				int pl = atoi(&msg[50]);
 				memcpy(player[pl].resurs, &msg[54], 10 * sizeof(int));   //карточки

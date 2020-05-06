@@ -132,12 +132,11 @@ int main()
                 if (st == 4)  //возврат к моменту начала строительства
                 {
                     Ask_Send_Arrays();
-                    //Ask_Send_Resurs();
+                    Ask_Send_Resurs();
                 }
                 if (st == 2)
                     {
                     Ask_Send_Arrays();    //по ECS можно переходить до момента завершения хода
-                    //Ask_Send_Resurs();
                     Game_Step.step[st].flag_set_one_Village = 1;
                     Game_Step.step[st].flag_set_one_Road = 1;
                     player[player_num].village = 5;

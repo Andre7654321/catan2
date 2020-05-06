@@ -16,6 +16,7 @@ void ClientHandler(int);
 void ServerClientStreamFunc(int);
 
 void Ask_Send_Arrays();
+void Ask_Send_Resurs();
 int Count_Num_players();
 
 void Say_Start();
