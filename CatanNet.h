@@ -21,8 +21,10 @@ int Count_Num_players();
 void Say_Start();
 void Say_Move_Over();
 void Say_Roll_1Dice();
+void Say_Roll_2Dice();
 
 void Send_To_All(char* , int);
+void Send_To_All_Info_Resurs();
 
 
 #endif

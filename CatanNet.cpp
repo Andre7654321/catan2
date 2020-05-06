@@ -35,6 +35,7 @@ std::mutex mtx1;    //защищает поток сообщений cout
 
 extern PLAYER player[5];
 extern GAME_STEP Game_Step;
+extern int CARD_Bank[10];
 
 //стандартные сообщения для обмена управлением клиента с сервером
 std::string CATAN_command = "$CATAN$";
@@ -54,7 +55,10 @@ SAY_GAME_START,
 NODE_ARRAY,
 ROAD_ARRAY,
 ASK_ROAD_ARRAY,
-ASK_NODE_ARRAY
+ASK_NODE_ARRAY,
+INFO_BANK_RESURS,
+LAST_VILLAGE,
+PLAYER_RESURS
 };
 
 std::map<NET_COMMAND, std::string> Map_Command =
@@ -74,6 +78,9 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::ROAD_ARRAY,	        "$CATAN$ ROAD_ARRAY"},
 	{NET_COMMAND::ASK_NODE_ARRAY,	    "$CATAN$ ASK_NODE_ARRAY"},
 	{NET_COMMAND::ASK_ROAD_ARRAY,	    "$CATAN$ ASK_ROAD_ARRAY"},
+	{NET_COMMAND::INFO_BANK_RESURS,	    "$CATAN$ INFO_BANK_RESURS"},
+	{NET_COMMAND::LAST_VILLAGE,	        "$CATAN$ LAST_VILLAGE"},
+	{NET_COMMAND::PLAYER_RESURS,	    "$CATAN$ PLAYER_RESURS"},
 };
 
 //========================================================
@@ -164,10 +171,53 @@ void Say_Move_Over()
 
 	std::cout << " Ход завершен " << std::endl;
 
-	Send_nodes();
+	//после строительства передать инфо по дорогам и узлам
+	Send_nodes();	
 	Send_roads();
 
+	//после строительства передать инфо по своим ресурсам и банку ресурсов на сервер
+	//общий банк карточек
+	strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
+	memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
+	send(Connection, msg, sizeof(msg), NULL);
+
+	//ресурсы  игрока
+    strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
+	_itoa(player_num, &msg[50], 10);     //номер игрока
+	memcpy(&msg[54], player[player_num].resurs, 10 * sizeof(int));   //карточки
+	send(Connection, msg, sizeof(msg), NULL);
+
+
+
+	//на 3 шаге переслать номер узла поставленной последней деревни
+	if (Game_Step.current_step == 3)  
+	   {
+		std::cout << " Send Last village =  " << player[player_num].last_village_node  << std::endl;
+
+		strcpy_s(msg, Map_Command[NET_COMMAND::LAST_VILLAGE].c_str());
+		itoa(player[player_num].last_village_node, &msg[50], 10);
+		send(Connection, msg, sizeof(msg), NULL);
+	   }
+
 	strcpy_s(msg, Map_Command[NET_COMMAND::SAY_MOVE_OVER].c_str());
+	itoa(player_num, &msg[50], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+	Sleep(10);
+
+	return;
+}
+
+//========================================================
+// посылает сообщение что кинут  1 кубик
+//========================================================
+void Say_Roll_2Dice()
+{
+	char msg[256];
+
+	std::cout << " Вы бросили  кубики " << std::endl;
+
+	// сообщение о броске кубика
+	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_ROLL_2DICE].c_str());
 	itoa(player_num, &msg[50], 10);
 	send(Connection, msg, sizeof(msg), NULL);
 	Sleep(10);
@@ -182,7 +232,7 @@ void Say_Roll_1Dice()
 {
 char msg[256];
 
-	std::cout << " Вы бросили  1кубик " << std::endl;
+	std::cout << " Вы бросили  кубик " << std::endl;
 
 	// сообщение о броске кубика
 	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_ROLL_1DICE].c_str());
@@ -301,7 +351,7 @@ void ClientHandler(int index)
 
 				if (Command == NET_COMMAND::SET_N_ACTIVE_PLAYER)
 				{
-					//std::cout << "Ход передан игроку -  " << atoi(&msg[50]) << std::endl;
+					if(Game_Step.current_step == 4)  Game_Step.step[4].roll_2_dice = 1;
 					Game_Step.current_active_player = atoi(&msg[50]);
 					continue;
 				}
@@ -337,6 +387,20 @@ void ClientHandler(int index)
 					//std::cout << " ARRAY    num  " << road_num << "   Start N" << first_road << std::endl;
 					for (int p = 0; p < road_num; p++) { roadPtr->at(first_road + p).owner = *intPtr++; 	roadPtr->at(first_road + p).type = *intPtr++; }					
 				    }
+
+				if (Command == NET_COMMAND::INFO_BANK_RESURS)
+				    {
+					int* intPtr = (int*)&msg[50];
+					memcpy(CARD_Bank, &msg[50], 10 * sizeof(int));
+					continue;
+				    }
+
+				if (Command == NET_COMMAND::PLAYER_RESURS)
+				{
+					int pl = atoi(&msg[50]);
+					memcpy(player[pl].resurs, &msg[54], 10 * sizeof(int));   //карточки
+					continue;
+				}
 			
 			     continue;
 			    }
@@ -638,15 +702,31 @@ void ServerClientStreamFunc(int index)
 				}
 				continue;
 			}
+
+			if (Command == NET_COMMAND::LAST_VILLAGE)
+			    {
+			    player[Game_Step.current_active_player].last_village_node = atoi(&msg[50]); 
+			    continue;
+			    }
 				
 			if (Command == NET_COMMAND::SAY_MOVE_OVER)
 			{
-				int player = atoi(&msg[50]);
-				std::cout << " Завершение хода игрок  " << player << std::endl;
+				int pl = atoi(&msg[50]);
+				//std::cout << " Завершение хода игрок  " << pl << std::endl;
+				if ( Game_Step.current_step == 4)
+				    {
+					Game_Step.current_active_player = GetNextPlayer();
+					std::cout << "SERVER  Передаю ход игроку  " << Game_Step.current_active_player << std::endl;
+					strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_ACTIVE_PLAYER].c_str());	_itoa(Game_Step.current_active_player, &msg[50], 10);
+					Send_To_All(msg, sizeof(msg));
+					continue;
+				    }
+				if (Game_Step.current_step == 3)   Get_Resurs(player[pl].last_village_node,pl);
+				Send_To_All_Info_Resurs();
 				if (Game_Step.current_active_player == Game_Step.start_player && Game_Step.current_step == 3)
 				      {
 					  Game_Step.current_step = 4;     //старт стандартных ходов игры
-					  std::cout << " ================= Переход на основную игру  =====================  " << player << std::endl;
+					  std::cout << " ================= Переход на основную игру  =====================  " << pl << std::endl;
 					  //сообщить всем номер хода
 					  strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());	_itoa(Game_Step.current_step, &msg[50], 10);
 					  Send_To_All(msg, sizeof(msg));
@@ -662,7 +742,7 @@ void ServerClientStreamFunc(int index)
 					strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());	_itoa(Game_Step.current_step, &msg[50], 10);
 					Send_To_All(msg, sizeof(msg));
 				}
-				else
+				  else
 				    { 
 					if(Game_Step.current_step == 2)  Game_Step.current_active_player = GetNextPlayer();
 					if(Game_Step.current_step == 3)  Game_Step.current_active_player = GetPrevPlayer();
@@ -702,11 +782,48 @@ void ServerClientStreamFunc(int index)
 			strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());	_itoa(Game_Step.current_step, &msg[50], 10);
 			Send_To_All(msg, sizeof(msg));
 		
+			mtx1.lock();  std::cout << "SERVER  Передаю ход игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
 			//передать всем что ход передан игроку № для броска кубика
 			strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_ACTIVE_PLAYER].c_str());	_itoa(Game_Step.current_active_player, &msg[50], 10);
 			Send_To_All(msg, sizeof(msg));    
 			continue;
 			}
+
+			if (Command == NET_COMMAND::ASK_ROLL_2DICE)
+			{
+				int pl = atoi(&msg[50]);
+
+				srand(time(0));
+				int dice2 = rand() % 6 + 1  + rand() % 6 + 1;   //2 кубика
+
+				//сообщить всем результат броска кубика - не системное ??  простое оповещение 
+				std::cout << " Бросок кубиков =  " <<  dice2  << std::endl;
+				strcpy(msg, "Player "); _itoa(pl, msg1, 10); strcat(msg, msg1);
+				strcat(msg, " roll  -   ");  _itoa(dice2, msg1, 10);   strcat(msg, msg1);
+				Send_To_All(msg, sizeof(msg));
+
+				//распределить ресурсы по результатам броска - цикл по узлам катана
+				Step_Resurs(dice2);
+				Send_To_All_Info_Resurs();
+				continue;
+			}
+
+			if (Command == NET_COMMAND::INFO_BANK_RESURS)
+			{
+				int* intPtr = (int*)&msg[50];
+				memcpy(CARD_Bank, &msg[50], 10 * sizeof(int));
+				Send_To_All(msg, sizeof(msg));
+				continue;
+			}
+
+			if (Command == NET_COMMAND::PLAYER_RESURS)
+			{
+				int pl = atoi(&msg[50]);
+				memcpy(player[pl].resurs, &msg[54], 10 * sizeof(int));   //карточки
+				Send_To_All(msg, sizeof(msg));
+				continue;
+			}
+
         
 		continue;
 		}  //закончена обработка , если в команде нет CONTINUE, то она будет дублирована всем
@@ -747,6 +864,30 @@ void Send_To_All(char* msg,int size)
 return;
 }
 
+//=======================================================================
+//отправка сообщения о ресурсах от сервера всем игрокам
+//=======================================================================
+void Send_To_All_Info_Resurs()
+{
+ char msg[256];
+
+ //общий банк карточек
+ strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
+ memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
+ Send_To_All(msg,sizeof(msg));
+
+ //ресурсы каждого игрока
+ for (int i = 1; i < 5; i++)
+    {
+	 strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
+	 _itoa(i, &msg[50], 10);     //номер игрока
+	 memcpy(&msg[54],player[i].resurs, 10 * sizeof(int));   //карточки
+	 Send_To_All(msg, sizeof(msg));
+    }
+
+ return;
+}
+
 
 //============================================================================
  //   функция чата клиента для ввода сообщений другим пользователям
@@ -755,6 +896,7 @@ int ClientChart()
 {
 	char msg1[256];
 
+	Sleep(30);   //попытка избежать ошибки запуска потока 
 	while (true)
 	{
 		std::cin.getline(msg1, sizeof(msg1));

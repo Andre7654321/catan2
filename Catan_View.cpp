@@ -18,7 +18,7 @@ int Field_CATAN_x = 230;
 int Field_CATAN_y  = 120;
 float field_scale = 1.3f;
 
-
+sf::Sprite cube_sprite;
 //================================================================
 //  
 //================================================================
@@ -26,11 +26,11 @@ void Draw_Cubic(sf::RenderWindow* win)
 {
     sf::Texture texture;
     texture.loadFromFile("img/Cube.png");
-    sf::Sprite sprite;    sprite.setTexture(texture);
+    cube_sprite.setTexture(texture);
 
-    sprite.setPosition(950, 50);
+    cube_sprite.setPosition(950, 50);
 
-    win->draw(sprite);
+    win->draw(cube_sprite);
     return;
 }
 
@@ -66,21 +66,29 @@ void Draw_Step_Info(sf::RenderWindow* win)
     if (Game_Step.current_step == 3)    strcpy_s(str, "Set 1 Village(+take RESORCE) and 1 road near - step 3");
     if (Game_Step.current_step == 4)    strcpy_s(str, "  ---------- Standart step ---------");
 
-    if (player_num == Game_Step.current_active_player) strcat_s(str, ",  your move");
-    else { 
-         strcat_s(str, ",  player ");  
-         _itoa_s(Game_Step.current_active_player, str1, 10);  strcat_s(str1, "  move ");
-         strcat_s(str,str1);
-         }
-         
+    strcat_s(str, ",  player ");
+    _itoa_s(Game_Step.current_active_player, str1, 10);  strcat_s(str1, "  move ");   strcat_s(str, str1);
+
     text_step.setString(str);
     text_step.setPosition(450, 20);      win->draw(text_step);
 
+    if (player_num == Game_Step.current_active_player && Game_Step.current_step >= 1)
+        {
+        strcpy_s(str, "Your move");
+        text_step.setCharacterSize(50);  text_step.setFillColor(sf::Color::Color(120,255,120));
+        text_step.setString(str);
+        text_step.setPosition(500, 45);      win->draw(text_step);
+        }
+         
+    
+
     if (player_num != 0) return;
 
-    strcpy_s(str, "First Pl = ");  _itoa_s(Game_Step.start_player, str1, 10);  strcat_s(str,str1);
+    strcpy_s(str, "First Player = ");  _itoa_s(Game_Step.start_player, str1, 10);  strcat_s(str,str1);
     text_step.setString(str);
-    text_step.setPosition(450, 50);      win->draw(text_step);
+    text_step.setPosition(550, 50);      win->draw(text_step);
+
+    return;
 }
 //------------------------------------------------------------------------------------
 
@@ -191,7 +199,7 @@ void DrawPlayer(sf::RenderWindow* win)
 {
     int f_x = 300;
     int f_y = 830;
-    char str[30];
+    char str[90];
 
     //std::cout << " =======  DRAW PLAYER FIELD ============== " << std::endl;
     
@@ -220,6 +228,15 @@ void DrawPlayer(sf::RenderWindow* win)
     text2.setPosition(f_x + 400, f_y + 30);     _itoa_s(player[player_num].village, str, 10);  text2.setString(str);  win->draw(text2);
     DrawRoad(win, player_num, f_x + 465, f_y, 0.2,0);
     text2.setPosition(f_x + 500, f_y);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
+
+    //счет
+    if (player_num != 0)
+        {
+        strcpy_s(str, "Score : ");
+        text2.setPosition(f_x + 600, f_y);  text2.setString(str);  win->draw(text2);
+        _itoa_s(CountScore(player_num), str, 10);
+        text2.setPosition(f_x + 670, f_y);  text2.setString(str);  win->draw(text2);
+        }
 
 
     //если есть еще активные игроки - прорисовать их на экране

@@ -3,6 +3,7 @@
 #include <vector>
 #include <typeinfo>
 #include <time.h>
+#include <string.h>
 #include "CatanField.h"
 #include "Catan_View.h"
 
@@ -10,6 +11,8 @@
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
+extern PLAYER player[5];
+extern int CARD_Bank[10];
 
 
 //размер 15 на 20 - универсальный для большого поля
@@ -21,6 +24,21 @@ int CATAN19[15][20] =
     {  2,3,4,5  },   //  12,13,14,15
     {   2,3,4   }    //   16,17,18
 };
+
+std::string resurs_name[10] =
+{
+   "empty",
+    "WOOD",
+    "BRICKS",
+    "BREAD",
+    "STONE",
+    "OVCA",
+    "PIRATE",
+    "FISH1",
+    "FISH2",
+    "FISH3"
+};
+
 
 //для 19 гексов определяем узлы привязки к полю
 int GECS_POSITION[6][19] =
@@ -62,10 +80,95 @@ PLAYER::PLAYER()
     resurs[(int)RESURS::FISH1] = 0;
     resurs[(int)RESURS::FISH2] = 0;
     resurs[(int)RESURS::FISH3] = 0;
-
 };
 //============================= PLAYER   end =============================================
 
+//=========================================================================
+// Подсчет очков пока без дорог
+//=========================================================================
+int CountScore(int pl)
+{
+ int score = 0;
+
+ //города и деревни  
+ for (auto& n : *nodePtr)
+    {
+     if (n.object == VILLAGE && n.owner == pl) score += 1;
+     if (n.object == TOWN  && n.owner == pl) score += 2;
+    }
+ //дорога
+ //карточки развития - очки + войско
+ //гавани
+
+ return score;
+}
+
+//========================================================================================
+// получить ресурсы с окружающих переданную точку гексов
+//========================================================================================
+void Step_Resurs(int dice2)
+{
+ int num = 0;
+
+    for (auto& nd : *nodePtr)
+    {
+        if (nd.owner == -1)  continue;    //узел не застроен
+
+        for (auto& g : *gecsPtr)
+        {
+            if (CARD_Bank[(int)g.type] == 0) continue;   //если ресурса нет, даже не рассматриваем
+            if (dice2 == g.gecs_game_number && abs(nd.n_x - g.x) < 25 && abs(nd.n_y - g.y) < 25 && g.type != RESURS::PIRATE)   //и пираты не стоят на гексе
+            {
+                num = 0;
+                if (nd.object == VILLAGE) num = 1;
+                if (nd.object == TOWN) num = 2;
+
+                if(CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
+                else 
+                   {
+                    num -= 1;
+                    if (CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
+                       else continue;
+                   }
+
+                player[nd.owner].resurs[(int)g.type] += num;
+                std::cout << "  Выдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  Игроку " << nd.owner << std::endl;
+            }
+        }  //for 2
+    }  //for 1
+
+    return;
+}
+
+//========================================================================================
+// получить ресурсы с окружающих переданную точку гексов
+//========================================================================================
+void Get_Resurs(int village_node,int player_num)
+{
+    int x=0,y=0;
+    
+    if (village_node < 0)
+    {   std::cout << " Ask resurs near  " << village_node  << std::endl;      return;   }
+    
+    //определить координаты узла
+    x = nodePtr->at(village_node).getNode_x();
+    y = nodePtr->at(village_node).getNode_y();
+
+    //std::cout << " Village Node  " << village_node << " x " << x << " y " << y << "  Player " << player_num << std::endl;
+
+//со всех гексов, до которых расстояние менее 3, получить по 1 ресурсу
+    for (auto &g : *gecsPtr)
+       {
+        if (abs(x - g.x) < 25 && abs(y - g.y) < 25 && g.type != RESURS::PIRATE)
+           {
+            CARD_Bank[(int)g.type] -= 1;
+            player[player_num].resurs[(int)g.type] += 1;
+            std::cout << "  Выдан 1 resurs -  " << resurs_name[(int)g.type] << "  Игроку " << player_num  << std::endl;
+           }
+       }
+
+return;
+}
 
 //==================================================================================================
 // добавление узла в вектор поля
@@ -117,7 +220,7 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
 
  srand(time(0)); 
  int coner = rand() % 6;   //рандомно выбирается стартовый угол обхода для присвоения номера
- std::cout << "  Присвоение номеров с угла   " << coner << std::endl;
+ //std::cout << "  Присвоение номеров с угла   " << coner << std::endl;
 
  int position;
  for (i = 0, ii = 0; i < 19; i++)
@@ -158,6 +261,23 @@ void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
         }
     }  //end for
     return;
+}
+
+//=========================================================================
+// истина к узлу примыкает своя дорога
+//=========================================================================
+bool isRoadNear(int index,int player_num)
+{
+    int nx = nodePtr->at(index).n_x;
+    int ny = nodePtr->at(index).n_y;
+
+    for (auto& r : *roadPtr)
+    {
+        if (r.Node_num_start == index || r.Node_num_end == index)
+            if (r.owner == player_num)  return true;               
+    }
+
+    return false;
 }
 
 //=========================================================================
@@ -209,7 +329,7 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
     int i = 0;
     for(auto &elem : *PtrGecs)
        {
-        //std::cout << i++ << "\tGecs x = " << elem.getGecs_x() <<  "\t|  y = " <<  elem.getGecs_y() <<std::endl;
+        //std::cout << i++ << "\tGecs x = " << elem.getGecs_x() <<  "\t|  y = " <<  elem.getGecs_y() << "  " << resurs_name[(int)elem.type] << std::endl;
        }
 
 //по массиву гексов заполнить массив узлов поля --------------------------------------------------
@@ -296,7 +416,7 @@ NODE::NODE() {};
  bool NODE::isNode_infocus(int mouse_x, int mouse_y)
  {
      mouse_x = Game_x(mouse_x);  mouse_y = Game_y(mouse_y);
-     if (mouse_x > n_x - 10 && mouse_x < n_x + 10 && mouse_y > n_y - 10 && mouse_y < n_y + 10)   return true;
+     if (mouse_x > n_x - 9 && mouse_x < n_x + 9 && mouse_y > n_y - 9 && mouse_y < n_y + 9)   return true;
      return false;
  };
  int NODE::getNode_number()  { return number; }
@@ -335,6 +455,22 @@ NODE::NODE() {};
             else { Node_num_start = end;  Node_num_end = start; }
         }
 
+    bool ROAD::isYourLastVillageNear(int node)
+        {
+        if (Node_num_start == node || Node_num_end == node)  return true;
+        return false;
+        }
+
+   bool ROAD::isYourRoadNear(int player_num,int index)
+    { 
+    for (auto& r : *roadPtr)
+           {
+           if (r.Node_num_start == Node_num_start || r.Node_num_start == Node_num_end || r.Node_num_end == Node_num_start || r.Node_num_end == Node_num_end)
+               if(r.owner == player_num)  return true;
+           }
+        return false;
+    }
+    
     bool ROAD::isYourNodeNear(int player, std::vector<NODE>* PtrNode)
         {
         if (PtrNode->at(Node_num_start).owner == player || PtrNode->at(Node_num_end).owner == player)  return true;

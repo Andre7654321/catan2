@@ -30,6 +30,8 @@ extern int Field_CATAN_y;
 extern sf::Sprite sprite_road;
 extern sf::Sprite sprite_town;
 extern sf::Sprite sprite_village;
+extern sf::Sprite cube_sprite;
+
 
 
 //глобальные переменные
@@ -63,14 +65,12 @@ int main()
    nodePtr = &Field;
    roadPtr = &Roads;
 
-   std::cout << "  Call init main field " << std::endl;
    Init_CATAN_Field(&Gecs, &Field, &Roads);
    //--------------------------------------------------------------------
 
    Game_Step.current_step        = 0;           //начало игры
    Game_Step.start_player        = 1;
    Game_Step.current_active_player = 1;           //бросок кубика за игроком №0
-
 
     char connectionType;
     std::cout << "Enter (s) for server, Enter (c) for client" << std::endl;
@@ -98,8 +98,6 @@ int main()
 
     //--------------------------------------------------------------------------------------------
 
-
-
     int st;
     //main cycle ===============================================================================================
     while (window.isOpen())
@@ -116,81 +114,114 @@ int main()
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))  {  flag_draw_gecs ? flag_draw_gecs = false : flag_draw_gecs = true; } 
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) { flag_draw_node ? flag_draw_node = false : flag_draw_node = true; }
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road ? flag_draw_road = false : flag_draw_road = true; }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))  { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
-            //отслеживает факт нажатия клавиши
+            //отслеживает факт нажатия SPACE - завершение хода
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
                   {
-                     if (Game_Step.current_step == 3 && Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
-                                 {    Say_Move_Over();     }
-                     if (Game_Step.current_step == 2 && Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
-                                 {        Say_Move_Over();      }
-                     if (Game_Step.current_step == 1) { Say_Roll_1Dice(); }
-                     if (Game_Step.current_step == 0) { Say_Start(); }
+                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0)  Say_Move_Over();
+                     if (st == 3 || st == 2)
+                         {  if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0) Say_Move_Over();  }
+                     if (st == 1)  Say_Roll_1Dice(); 
+                     if (st == 0)  Say_Start(); 
                   }
 
-            //переходить последние действия если допустимо
+            //переход по ESC
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Escape && player_num == Game_Step.current_active_player)
             {
-                if (Game_Step.current_step == 2)
+                if (st == 4)  //возврат к моменту начала строительства
+                {
+                    Ask_Send_Arrays();
+                    //Ask_Send_Resurs();
+                }
+                if (st == 2)
                     {
                     Ask_Send_Arrays();    //по ECS можно переходить до момента завершения хода
+                    //Ask_Send_Resurs();
                     Game_Step.step[st].flag_set_one_Village = 1;
                     Game_Step.step[st].flag_set_one_Road = 1;
                     player[player_num].village = 5;
                     player[player_num].road = 15;
                     }
-                if (Game_Step.current_step == 3)
+                if (st == 3)
                 {
                     Ask_Send_Arrays();     //по ECS можно переходить до момента завершения хода
+                    //Ask_Send_Resurs();
                     Game_Step.step[st].flag_set_one_Village = 1;
                     Game_Step.step[st].flag_set_one_Road = 1;
                     player[player_num].village = 4;
                     player[player_num].road = 14;
-                    //обнулить ресурсы
+                    player[player_num].last_village_node = -1;
                 }
             }
             
             //если нажата клавиша мыши левая  
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
             {
-                for (auto& elem : Field)
+               //кубик
+               if (cube_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
+                {
+                   std::cout << "  Dice selected  " << std::endl;
+                   if (st == 4 && Game_Step.step[st].roll_2_dice == 1) {  Say_Roll_2Dice();   Game_Step.step[st].roll_2_dice = 0;    }
+                }
+
+                //цикл по узлам
+               for (auto& elem : Field)
                 {
                     if (elem.isNode_infocus(pixelPos.x, pixelPos.y))
                     {
-                    std::cout << " Node selected =  " << elem.number << "  Pl owner =  " << elem.owner << std::endl;
+                    if(elem.owner != -1)  std::cout << "Node N=  " << elem.number << " Owner =  " << elem.owner << " x = " << elem.n_x << " y = " << elem.n_y << std::endl;
+                      else std::cout << " Node =  " << elem.number << " Node free  "  << "  x = " << elem.n_x << " y = " << elem.n_y << std::endl;
                     }
                 }
                 
+               //village
                if (sprite_village.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //расположение деревни игрока
-                {
-                std::cout << "  Village  selected  " << std::endl;
-                auto coord = sprite_village.getPosition();
-                dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
-                if (Game_Step.step[st].flag_set_one_Village || Game_Step.step[st].flag_setVillage)   village_ismove = true; 						
-                }
+                  {
+                  std::cout << "  Village  selected  " << std::endl;
+                  auto coord = sprite_village.getPosition();
+                  dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
+                  if(Game_Step.step[st].flag_set_one_Village || Game_Step.step[st].flag_setVillage)   village_ismove = true;
+                  if(st == 4 && Game_Step.step[4].roll_2_dice == 1 )   village_ismove = false;
+                  if (st == 4)
+                     {
+                      if (player[player_num].resurs[(int)RESURS::WOOD] < 1 || player[player_num].resurs[(int)RESURS::BRICKS] < 1 ||
+                           player[player_num].resurs[(int)RESURS::OVCA] < 1 || player[player_num].resurs[(int)RESURS::BREAD] < 1)   village_ismove = false;
+                     }
+                  }
 
-               if (sprite_town.getGlobalBounds().contains(pixelPos.x, pixelPos.y))  //расположение города игрока
+               //town
+               if (sprite_town.getGlobalBounds().contains(pixelPos.x, pixelPos.y))  
                   {
                    std::cout << "  Town selected  "  << std::endl;
                    auto coord = sprite_town.getPosition();
                    dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                    if (Game_Step.step[st].flag_set_one_Town || Game_Step.step[st].flag_setTown)   town_ismove = true;
+                   if (st == 4)
+                       {
+                       if(Game_Step.step[4].roll_2_dice == 1)     town_ismove = false;
+                       if(player[player_num].resurs[(int)RESURS::STONE] < 3 || player[player_num].resurs[(int)RESURS::BREAD] < 2)   town_ismove = false;
+                       }
                    }
 
-               if(sprite_road.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
-               {
+               //road
+               if(sprite_road.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //road
+                   {
                    std::cout << "  Road selected  " << std::endl;
                    auto coord = sprite_road.getPosition();
                    dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                    if (Game_Step.step[st].flag_set_Road || Game_Step.step[st].flag_set_one_Road)   road_ismove = true;
-               }
-
+                   if (st == 4)
+                   {
+                    if (Game_Step.step[4].roll_2_dice == 1)   road_ismove = false;
+                    if (player[player_num].resurs[(int)RESURS::WOOD] < 1 || player[player_num].resurs[(int)RESURS::BRICKS] < 1)  road_ismove = false;
+                   }
+                   }
 
             } //end нажатия левой кнопки мыши
 
 
-            //если отпустили левую клавишу  -----------------------------------------------------------------------------
+            //если отпустили левую клавишу мышки с деревней-------------------------------------------------------------------
             if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && village_ismove == true)     
             {
                 village_ismove = false;        // не можем двигать деревню
@@ -204,21 +235,27 @@ int main()
                         if (elem.isNode_free(i) == false)   { std::cout << "  NODE is busy " << "\n";  break; }
                                 else std::cout << " OK  NODE is free " << "\n";
 
-                        if (isVillageNear(i) == true) { std::cout << " Other Village too NEAR " << "\n";  break; }
+                        if(isVillageNear(i) == true && st != 4)  { std::cout << " Other Village too NEAR " << "\n";  break; }
+                        if(isRoadNear(i,player_num) == false && st == 4) { std::cout << " No your road  NEAR " << "\n";  break; }
                           
-                        //if (Roads.isRoadNearNode(i, player_num) == false && Game_Step.step[st].flag_setVillage == 1 && player[player_num].village < 5)
-                        //    {
-                        //    std::cout << " No a road near site " << "\n";   break;
-                        //    }
                         elem.owner = player_num;
                         player[player_num].village -= 1;
                         elem.object = VILLAGE;
+                        player[player_num].last_village_node = elem.number;
                         if (Game_Step.step[st].flag_set_one_Village)   Game_Step.step[st].flag_set_one_Village = 0;
+                        if (st == 4)
+                            {
+                            player[player_num].resurs[(int)RESURS::WOOD] -= 1;   CARD_Bank[(int)RESURS::WOOD] += 1;
+                            player[player_num].resurs[(int)RESURS::BRICKS] -= 1;  CARD_Bank[(int)RESURS::BRICKS] += 1;
+                            player[player_num].resurs[(int)RESURS::OVCA] -= 1;  CARD_Bank[(int)RESURS::OVCA] += 1;
+                            player[player_num].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
+                            }
                         }
                     i++;
                     }
             }      //------------------------- end put village ------------------------------
 
+            //если отпустили левую клавишу мышки с дорогой
             if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && road_ismove == true)
             {
                 road_ismove = false;        // не можем двигать дорогу
@@ -229,28 +266,53 @@ int main()
                     {
                         std::cout << "\n ====== Try to set road # -  " << i << "\n";
                         if (player[player_num].road < 1) { std::cout << " You have not any roads " << "\n";  break; }
-                        if (elem.isYourNodeNear(player_num, &Field) == false && Game_Step.step[st].flag_set_one_Road == 1) 
-                                                                          { std::cout << " No a village near this way " << "\n";   break; }
+                        if (elem.isYourNodeNear(player_num, &Field) == false && Game_Step.step[st].flag_set_one_Road == 1 && st != 4) 
+                                       { std::cout << " No a village near this way " << "\n";   break; }
+                        if (elem.isYourNodeNear(player_num, &Field) == false && elem.isYourRoadNear(player_num,i) == false && st == 4)
+                                       {   std::cout << " Can not put road this way " << "\n";   break;  }
                         if (elem.owner != -1) { std::cout << "  ROAD is BUSY " << "\n";   break; }
+                        if (Game_Step.current_step == 3)
+                              {
+                              if (Game_Step.step[st].flag_set_one_Village == 1) break;
+                              if (elem.isYourLastVillageNear(player[player_num].last_village_node) == false) break;
+                              }
+
                         elem.owner = player_num;
                         player[player_num].road -= 1;
                         elem.type = 1;      //road
                         if (Game_Step.step[st].flag_set_one_Road)     Game_Step.step[st].flag_set_one_Road = 0;
+                        if(st == 4)
+                             {
+                             player[player_num].resurs[(int)RESURS::WOOD] -= 1;   CARD_Bank[(int)RESURS::WOOD] += 1;
+                             player[player_num].resurs[(int)RESURS::BRICKS] -= 1;  CARD_Bank[(int)RESURS::BRICKS] += 1;
+                             }
                         break;
                     }
                     i++;
                 }
             }      //------------------------- end put road ------------------------------
 
+            //если отпустили левую клавишу мышки с городом
             if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && town_ismove == true)
             {
                 town_ismove = false;        // не можем двигать город
+                int i = 0;
                 for (auto& elem : Field)
                 {
                     if (elem.isNode_infocus(pixelPos.x, pixelPos.y))
                     {
-                        std::cout << "\n ====== Try to put town node # -  "  << "\n";
+                     std::cout << "\n ====== Try to put town node # -  "  << "\n";
+                     if (st != 4 || elem.owner != player_num || elem.object != VILLAGE)   {  break;  }
+
+                     player[player_num].village += 1;  player[player_num].town -= 1;
+                     elem.object = TOWN;
+                     if (st == 4)
+                         {
+                         player[player_num].resurs[(int)RESURS::STONE] -= 3;   CARD_Bank[(int)RESURS::STONE] += 3;
+                         player[player_num].resurs[(int)RESURS::BREAD] -= 2;  CARD_Bank[(int)RESURS::BREAD] += 2;
+                         }
                     }
+                i++;
                 }
             }      //------------------------- end put town ------------------------------
 
@@ -279,21 +341,24 @@ int main()
 
         Draw_Step_Info(&window);
 
-        if (player_num == 1 && Count_Num_players() >= 2 && Game_Step.current_step == 0)  Draw_Start(&window);
+        if (player_num == 1 && Count_Num_players() >= 2 && st == 0)  Draw_Start(&window);
 
-        if (player_num == Game_Step.current_active_player && Game_Step.current_step == 1)   Draw_Cubic(&window);
+        if (player_num == Game_Step.current_active_player && st == 1)   Draw_Cubic(&window);
 
+        if (player_num == Game_Step.current_active_player && st == 4)
+              if(Game_Step.step[st].roll_2_dice == 1)    Draw_Cubic(&window);
 
         window.display();   
     }
 
-
+    /*
     char close = '0';
     while (close != '1')
     {
         std::cout << "Enter 1  for close" << std::endl;
         std::cin >> close;
     }
+    */
     return 0;
 }
 

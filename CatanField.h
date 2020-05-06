@@ -6,6 +6,10 @@
 #include <vector>
 
 bool isVillageNear(int);
+bool isRoadNear(int, int);
+void Get_Resurs(int, int);
+void Step_Resurs(int);
+int CountScore(int );
 
 //---------------------------------------------------------------------------------
 //перечисление видов ресурсов
@@ -44,6 +48,7 @@ public:
 	int resurs[10];
 	bool active = false;
 	int first_roll = 0;
+	int last_village_node = -1;
 	PLAYER();
 };   //============================= PLAYER   end =============================================
 
@@ -102,6 +107,8 @@ public:
 	ROAD(int, int);
 	bool isRoad_infocus(int, int, std::vector<NODE>*);
 	bool isYourNodeNear(int, std::vector<NODE>*);
+	bool isYourLastVillageNear(int);
+	bool isYourRoadNear(int,int);
 
 	int getRoad_start();
 	int getRoad_end();
