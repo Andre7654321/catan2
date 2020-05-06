@@ -141,6 +141,7 @@ void Step::Step_Set(int i)
 		flag_setTown = 1;
 		flag_getResurs = 1;   //получение ресурсов от всех построек
 		flag_set_Road = 1;
+		flag_bandit = 0;
 	}
 	return;
 }

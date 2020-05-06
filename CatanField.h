@@ -69,6 +69,7 @@ public:
 	GECS(int,int);
 	int getGecs_x(void);
 	int getGecs_y(void);
+	bool isGecs_infocus(int, int);
 
 };   //============================= GECS   end =============================================
 

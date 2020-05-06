@@ -14,11 +14,14 @@ void DrawVillage(sf::RenderWindow*, int, int, int, float);
 void DrawTown(sf::RenderWindow* , int, int, int, float);
 
 void DrawResursBank(sf::RenderWindow*);
+void DrawChangeBank(sf::RenderWindow* win,int,int,int);
 void DrawPlayer(sf::RenderWindow*);
 void Draw_Step_Info(sf::RenderWindow*);
 
 void Draw_Start(sf::RenderWindow*);
 void Draw_Cubic(sf::RenderWindow*);
+void DrawBandit(sf::RenderWindow* , std::vector<GECS>*);
+void DrawBanditOnCoord(sf::RenderWindow* , int, int, float);
 
 int Game_x(int);
 int Game_y(int);

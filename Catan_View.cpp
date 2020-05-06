@@ -12,11 +12,58 @@ extern int CARD_Bank[10];
 extern PLAYER player[4];
 extern int player_num;
 
+//область обмена ресурсами
+extern int ChangeBANK[5][10];
+
 extern GAME_STEP Game_Step;
 
 int Field_CATAN_x = 230;
 int Field_CATAN_y  = 120;
 float field_scale = 1.3f;
+
+
+sf::Sprite bandit_sprite;
+int bandit_Gecs = -1;
+//================================================================
+//  если Гекс == -1 - бандит в привязке к гексу
+//================================================================
+void DrawBandit(sf::RenderWindow* win, std::vector<GECS>* PtrGecs)
+{
+    int x, y;
+    float scale = 0.2;
+
+    if (bandit_Gecs == -1)    {   scale = 0.3f;   x = 50;  y = 200;    }
+      else
+        {
+        scale = 0.25f;
+        //по координатам гекса поставить бандита
+        x = Draw_x(PtrGecs->at(bandit_Gecs).x);
+        y = Draw_y(PtrGecs->at(bandit_Gecs).y);
+        }
+    DrawBanditOnCoord(win,x,y, scale);
+    return;
+}
+
+//================================================================
+//  прорисовка спрайта бандита по координатам
+//================================================================
+void DrawBanditOnCoord(sf::RenderWindow* win,int x, int y, float scale)
+{
+
+ sf::Texture texture;
+ texture.loadFromFile("img/Bandit.png");
+ bandit_sprite.setTexture(texture);
+
+ bandit_sprite.setScale(scale, scale);
+ auto size = bandit_sprite.getTexture()->getSize();
+ bandit_sprite.setOrigin(size.x / 2, size.y / 1.8);
+
+ bandit_sprite.setPosition(x,y);
+ win->draw(bandit_sprite);
+
+ return;
+}
+//------------------------------------------------------------------------
 
 sf::Sprite cube_sprite;
 //================================================================
@@ -75,7 +122,9 @@ void Draw_Step_Info(sf::RenderWindow* win)
     if (player_num == Game_Step.current_active_player && Game_Step.current_step >= 1)
         {
         strcpy_s(str, "Your move");
-        text_step.setCharacterSize(50);  text_step.setFillColor(sf::Color::Color(120,255,120));
+        text_step.setFillColor(sf::Color::Color(120, 255, 120));
+        if (Game_Step.step[4].flag_bandit == 1) { strcpy_s(str, "Move Banditos"); text_step.setFillColor(sf::Color::Color(250, 125, 120));  }
+        text_step.setCharacterSize(50);  
         text_step.setString(str);
         text_step.setPosition(500, 45);      win->draw(text_step);
         }
@@ -190,7 +239,56 @@ void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale,int a
     
     return;
 }
+//-----------------------------------------------------------------------
 
+sf::Sprite sprite_chBank;
+sf::Texture texture_chBank_set;
+int flag_texture_chBank_set = 0;
+
+//=====================================================================
+//    ресурсы выставленные для обмена
+//=====================================================================
+void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
+{
+    char str[20];
+
+ //область под банк ресурсов
+ if (flag_texture_chBank_set == 0)
+    {
+    flag_texture_chBank_set = 1;
+    texture_chBank_set.loadFromFile("img/ch_bank_grey.png");
+    }
+ sprite_chBank.setTexture(texture_chBank_set);
+ sprite_chBank.setScale(0.8,0.8);
+ sprite_chBank.setPosition(x, y);
+ win->draw(sprite_chBank);
+
+ sf::Text text2("", font, 16);
+ text2.setFillColor(sf::Color::Black);
+ 
+ //сами ресурсы
+ for (int i = 0; i < 10; i++)
+    {
+     if(ChangeBANK[player_num][i] == 0) continue;  //если ресурса нет, то не прорисовываем
+
+    if (i == (int)RESURS::EMPTY) continue;
+
+    if (i == (int)RESURS::FISH1) continue;
+    if (i == (int)RESURS::FISH2) continue;
+    if (i == (int)RESURS::FISH3) continue;
+    if (i == (int)RESURS::PIRATE) continue;
+
+    DrawCard(win,i, x + i * 35, y + 35, 0.3);
+
+    //количество
+    _itoa_s(ChangeBANK[player_num][i], str, 10);
+    text2.setPosition(x + i * 35 + 10, y + 85);
+    text2.setString(str);
+    win->draw(text2);
+    }
+
+ return;
+}
 
 //=====================================================================
 //    ресурсы и фишки игрока 
@@ -212,9 +310,10 @@ void DrawPlayer(sf::RenderWindow* win)
     text2.setPosition(f_x, f_y - 40);      win->draw(text2);
 
     //начинаем с 1, так как начальный ресурс EMPTY
+    //надо чтобы спрайт ресурса был доступен для перетаскивания в зону обмена
     for(int i = 1; i < 6; i++)
     {
-        if (player[player_num].resurs[i] >= 0)
+     if (player[player_num].resurs[i] >= 0)
             {
             DrawCard(win, i, f_x + 60 * (i - 1),f_y, 0.5f);
             text2.setPosition(f_x + 10 + 60*(i -1 ), f_y + 80);     _itoa_s(player[player_num].resurs[i], str, 10);    text2.setString(str); win->draw(text2);
@@ -308,7 +407,7 @@ void DrawGecsNum(sf::RenderWindow* window, std::vector<GECS>* Gs)
     return;
 }
 
-
+//=====================================================================
 //=====================================================================
 void DrawGecs(sf::RenderWindow* window,std::vector<GECS>* Gs)
 {
@@ -323,7 +422,7 @@ void DrawGecs(sf::RenderWindow* window,std::vector<GECS>* Gs)
     gecs_textute[(int)(RESURS::PIRATE)].loadFromFile("img/Get_pirate.png");
 
     
-    int x, y;
+    int x, y, i = 0;
     char str[10];
     for (auto &g : *Gs)
     {
@@ -351,8 +450,10 @@ void DrawGecs(sf::RenderWindow* window,std::vector<GECS>* Gs)
 
     if (g.gecs_game_number < 10) text.setPosition(Draw_x(x)-10, Draw_y(y)-20);
     else text.setPosition(Draw_x(x) - 20, Draw_y(y) - 20);
+
+    if(i == bandit_Gecs)  text.setPosition(Draw_x(x) - 2, Draw_y(y) + 15);   //!!!!!!!!!!
     window->draw(text);
-        
+    i++;
     }
  return;
 }

@@ -31,7 +31,11 @@ extern sf::Sprite sprite_road;
 extern sf::Sprite sprite_town;
 extern sf::Sprite sprite_village;
 extern sf::Sprite cube_sprite;
+extern sf::Sprite bandit_sprite;
+extern sf::Sprite sprite_chBank;
+extern int bandit_Gecs;
 
+extern std::string resurs_name[10];
 
 
 //глобальные переменные
@@ -39,11 +43,18 @@ int player_num = 0;      //номер присваемый игроку   0 - для сервера
 int CARD_Bank[10];       //структура содержащая карточки ресурсов не принадлежание игрокам
 const int MAXPLAYERS = 4;
 PLAYER player[5];       //резервируем массив под максимальное число игроков + server
-int num_players = 0;
+//int num_players = 0;
+
+//область обмена ресурсами
+int ChangeBANK[5][10] = {0};
 
 bool village_ismove = false;    //перетаскивание деревни
 bool town_ismove = false;       //перетаскивание города
 bool road_ismove = false;
+bool bandit_ismove = false;
+bool CARD_ismove = false;
+RESURS CARD_type_move = RESURS::WOOD;
+RESURS CARD_type_get = RESURS::EMPTY;
 float dX, dY;              //компенсация для спрайтов при перетаскивании
 
 //объект класса игры --------------------------------------------------------
@@ -119,45 +130,80 @@ int main()
             //отслеживает факт нажатия SPACE - завершение хода
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
                   {
-                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0)  Say_Move_Over();
+                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0)  Say_Move_Over();
                      if (st == 3 || st == 2)
-                         {  if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0) Say_Move_Over();  }
+                     {
+                         if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0) { Say_Move_Over();  Sleep(30); }
+                     }
                      if (st == 1)  Say_Roll_1Dice(); 
                      if (st == 0)  Say_Start(); 
                   }
 
             //переход по ESC
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Escape && player_num == Game_Step.current_active_player)
+            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Escape && player_num == Game_Step.current_active_player 
+                     && Game_Step.step[st].flag_bandit == 0)
             {
                 if (st == 4)  //возврат к моменту начала строительства
                 {
                     Ask_Send_Arrays();
                     Ask_Send_Resurs();
+                    Ask_Send_Objects();
                 }
                 if (st == 2)
                     {
                     Ask_Send_Arrays();    //по ECS можно переходить до момента завершения хода
+                    Ask_Send_Objects();
                     Game_Step.step[st].flag_set_one_Village = 1;
                     Game_Step.step[st].flag_set_one_Road = 1;
-                    player[player_num].village = 5;
-                    player[player_num].road = 15;
+                    //player[player_num].village = 5;
+                    //player[player_num].road = 15;
                     }
                 if (st == 3)
                 {
                     Ask_Send_Arrays();     //по ECS можно переходить до момента завершения хода
-                    //Ask_Send_Resurs();
+                    Ask_Send_Objects();
+                    //player[player_num].village = 4;
+                    //player[player_num].road = 14;
+                    player[player_num].last_village_node = -1;
                     Game_Step.step[st].flag_set_one_Village = 1;
                     Game_Step.step[st].flag_set_one_Road = 1;
-                    player[player_num].village = 4;
-                    player[player_num].road = 14;
-                    player[player_num].last_village_node = -1;
                 }
             }
             
             //если нажата клавиша мыши левая  
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
             {
-               //кубик
+                //карточки  ресурсов банка
+                if (pixelPos.x > 10 && pixelPos.x < 250 && pixelPos.y > 10 && pixelPos.y < 70)
+                {
+                    //std::cout << "  Bank Zone selected  " << std::endl;
+                    dY = pixelPos.y - 10;
+                    if (pixelPos.x > 10 && pixelPos.x <=  55) { CARD_type_get = RESURS::WOOD;       dX = pixelPos.x - 10; }
+                    if (pixelPos.x > 55 && pixelPos.x <=  115) { CARD_type_get = RESURS::BRICKS;    dX = pixelPos.x - 60; }
+                    if (pixelPos.x > 110 && pixelPos.x <= 155) { CARD_type_get = RESURS::OVCA;       dX = pixelPos.x - 110; }
+                    if (pixelPos.x > 155 && pixelPos.x <= 205) { CARD_type_get = RESURS::STONE;     dX = pixelPos.x - 160; }
+                    if (pixelPos.x > 205 && pixelPos.x  < 250) { CARD_type_get = RESURS::BREAD;      dX = pixelPos.x - 210; }
+                    //std::cout << " Выбран   " << resurs_name[(int)CARD_type_get] << std::endl;
+                    if (st == 4)  //защита от случайного запроса на начальных шагах
+                        {
+                        if(AskChangeWithBank(CARD_type_get) == true)  InitChange_BANK();
+                        }
+                }
+                
+                //карточки своих ресурсов
+                if (pixelPos.x > 300 && pixelPos.x < 600 && pixelPos.y > 830 && pixelPos.y < 910)
+                {
+                    CARD_ismove = true;
+                    std::cout << "  Cards Zone selected  " << std::endl;
+                    dY = pixelPos.y - 820;  
+                    if (pixelPos.x > 300 && pixelPos.x < 360) { CARD_type_move = RESURS::WOOD;      dX = pixelPos.x - 300; }
+                    if (pixelPos.x > 360 && pixelPos.x < 420) { CARD_type_move = RESURS::BRICKS;    dX = pixelPos.x - 360;}
+                    if (pixelPos.x > 420 && pixelPos.x < 480) { CARD_type_move = RESURS::BREAD;     dX = pixelPos.x - 420; }
+                    if (pixelPos.x > 480 && pixelPos.x < 540) { CARD_type_move = RESURS::STONE;     dX = pixelPos.x - 480; }
+                    if (pixelPos.x > 540 && pixelPos.x < 600) { CARD_type_move = RESURS::OVCA;      dX = pixelPos.x - 540; }
+                }
+                
+                //кубик
                if (cube_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
                 {
                    std::cout << "  Dice selected  " << std::endl;
@@ -174,10 +220,19 @@ int main()
                     }
                 }
                 
+               //bandit
+               if (bandit_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
+               {
+                   std::cout << "  Bandit  selected  " << std::endl;
+                   auto coord = bandit_sprite.getPosition();
+                   dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
+                   if (Game_Step.step[st].flag_bandit)    bandit_ismove = true;
+               }
+
                //village
                if (sprite_village.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //расположение деревни игрока
                   {
-                  std::cout << "  Village  selected  " << std::endl;
+                  //std::cout << "  Village  selected  " << std::endl;
                   auto coord = sprite_village.getPosition();
                   dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                   if(Game_Step.step[st].flag_set_one_Village || Game_Step.step[st].flag_setVillage)   village_ismove = true;
@@ -192,7 +247,7 @@ int main()
                //town
                if (sprite_town.getGlobalBounds().contains(pixelPos.x, pixelPos.y))  
                   {
-                   std::cout << "  Town selected  "  << std::endl;
+                   //std::cout << "  Town selected  "  << std::endl;
                    auto coord = sprite_town.getPosition();
                    dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                    if (Game_Step.step[st].flag_set_one_Town || Game_Step.step[st].flag_setTown)   town_ismove = true;
@@ -206,7 +261,7 @@ int main()
                //road
                if(sprite_road.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //road
                    {
-                   std::cout << "  Road selected  " << std::endl;
+                   //std::cout << "  Road selected  " << std::endl;
                    auto coord = sprite_road.getPosition();
                    dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                    if (Game_Step.step[st].flag_set_Road || Game_Step.step[st].flag_set_one_Road)   road_ismove = true;
@@ -217,10 +272,53 @@ int main()
                    }
                    }
 
+               //при перестановке бандита другое двигать нельзя
+               if (Game_Step.step[st].flag_bandit) { village_ismove = false; town_ismove == false;  road_ismove == false; }
+
             } //end нажатия левой кнопки мыши
 
+            //если отпустили левую клавишу мышки с картой ресурса
+            if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && CARD_ismove == true)
+            {
+                CARD_ismove = false;        // не можем двигать
+                if(sprite_chBank.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
+                    {
+                    //добавить выбранный ресурс в область обмена, если в банке есть свободный
+                    if (player[player_num].resurs[(int)CARD_type_move] - ChangeBANK[player_num][(int)CARD_type_move] < 1)
+                    {
+                        std::cout << " Нет ресурса для добавления к обмену  " << resurs_name[(int)CARD_type_move] << std::endl;
+                        break;
+                    }
+                    std::cout << " ADD bank =  " << player[player_num].resurs[(int)CARD_type_move] << " change= " << ChangeBANK[player_num][(int)CARD_type_move] << std::endl;
+                    ChangeBANK[player_num][(int)CARD_type_move] += 1;
 
-            //если отпустили левую клавишу мышки с деревней-------------------------------------------------------------------
+                    //сообщить серверу об изменении области обмена
+                    //Say_Change_Resurs();
+                    }
+            }      //------------------------- end put resurs ------------------------------
+              
+              //если отпустили левую клавишу мышки с бандитом
+            if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && bandit_ismove == true)
+            {
+                bandit_ismove = false;        // не можем двигать 
+                int i = 0;
+                for (auto& g : Gecs)
+                {
+                    if (g.isGecs_infocus(pixelPos.x, pixelPos.y))  
+                           {
+                           if(i == bandit_Gecs)  continue;   //на месте оставить бандита нельзя
+
+                           bandit_Gecs = i;
+                           Game_Step.step[st].flag_bandit = 0;
+                           //сообщить серверу о перестановке бандита
+                           Say_Move_Banditos();
+                           break;  
+                           }
+                    i++;
+                }
+            }      //------------------------- end put bandit ------------------------------
+
+             //если отпустили левую клавишу мышки с деревней-------------------------------------------------------------------
             if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left && village_ismove == true)     
             {
                 village_ismove = false;        // не можем двигать деревню
@@ -328,13 +426,21 @@ int main()
         if (flag_draw_node == true)  DrawNodes(&window, &Field);
         
 
-        DrawResursBank(&window);
+        DrawResursBank(&window);    //ресурсы в банке не принадлежат игрокам
         DrawPlayer(&window);
+        if(st == 4) DrawChangeBank(&window,150,650,player_num);
+
+        if (bandit_ismove == true)  DrawBanditOnCoord(&window, pixelPos.x - dX, pixelPos.y - dY, 0.2f);
+        else
+            {   DrawBandit(&window, &Gecs); }
+
+        //если передвигается карта ресурса
+        if (CARD_ismove)   DrawCard(&window,(int)CARD_type_move, pixelPos.x - dX, pixelPos.y - dY, 0.5f);
 
         //если можем двигать деревню
-        if (village_ismove)   DrawVillage(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2);
+        if (village_ismove)   DrawVillage(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2f);
         //если можем двигать город
-        if (town_ismove)   DrawTown(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2);
+        if (town_ismove)   DrawTown(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2f);
         //если можем двигать дорогу
         if (road_ismove)   DrawRoad(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2, 0);
 

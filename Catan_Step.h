@@ -27,6 +27,7 @@ public:
 	int flag_set_one_Road = 0;
 	int flag_getResurs = 0;   //получение ресурсов от всех построек
 	int flag_getResurs_one_village = 0;
+	int flag_bandit = 0;
 
 	Step();
 	void Step_Set(int);

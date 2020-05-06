@@ -13,6 +13,7 @@ extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов пол€
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 extern PLAYER player[5];
 extern int CARD_Bank[10];
+extern int bandit_Gecs;
 
 
 //размер 15 на 20 - универсальный дл€ большого пол€
@@ -109,21 +110,29 @@ int CountScore(int pl)
 void Step_Resurs(int dice2)
 {
  int num = 0;
+ int i;
 
     for (auto& nd : *nodePtr)
     {
         if (nd.owner == -1)  continue;    //узел не застроен
 
+        i = 0;
         for (auto& g : *gecsPtr)
         {
-            if (CARD_Bank[(int)g.type] == 0) continue;   //если ресурса нет, даже не рассматриваем
-            if (dice2 == g.gecs_game_number && abs(nd.n_x - g.x) < 25 && abs(nd.n_y - g.y) < 25 && g.type != RESURS::PIRATE)   //и пираты не сто€т на гексе
+            if (CARD_Bank[(int)g.type] == 0) { i++; continue; }         //если ресурса нет, даже не рассматриваем
+            if (dice2 == g.gecs_game_number && abs(nd.n_x - g.x) < 25 && abs(nd.n_y - g.y) < 25 && g.type != RESURS::PIRATE)   
             {
-                num = 0;
-                if (nd.object == VILLAGE) num = 1;
-                if (nd.object == TOWN) num = 2;
+             if (i == bandit_Gecs)    //пираты  сто€т на гексе
+                {
+                std::cout << " Gesc " << i << " resurs -  " << resurs_name[(int)g.type] << " под Ѕандитами " << std::endl;
+                i++;   
+                continue;
+                }
+             num = 0;
+             if (nd.object == VILLAGE) num = 1;
+             if (nd.object == TOWN) num = 2;
 
-                if(CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
+             if(CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
                 else 
                    {
                     num -= 1;
@@ -131,9 +140,10 @@ void Step_Resurs(int dice2)
                        else continue;
                    }
 
-                player[nd.owner].resurs[(int)g.type] += num;
-                std::cout << "  ¬ыдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  »гроку " << nd.owner << std::endl;
+             player[nd.owner].resurs[(int)g.type] += num;
+             std::cout << "  ¬ыдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  »гроку " << nd.owner << std::endl;
             }
+        i++;
         }  //for 2
     }  //for 1
 
@@ -254,6 +264,12 @@ void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
            if (PtrGecs->at(ii).type == RESURS::EMPTY)
             {
                 PtrGecs->at(ii).type = Simple_Game[i];
+                if (Simple_Game[i] == RESURS::PIRATE)
+                    {
+                    std::cout << " Bandit  Gecs N " <<  ii << " \n";
+                    bandit_Gecs = ii;
+                    }
+           
                 //std::cout << "  Gecs " << i << "  put in " << ii << " sell  \n";
                 break;
             }
@@ -438,7 +454,13 @@ NODE::NODE() {};
            {};
     int GECS::getGecs_x()     {  return  x; }
     int GECS::getGecs_y()     {  return  y; }
-   //============================= GECS   end =============================================
+    bool GECS::isGecs_infocus(int mouse_x, int mouse_y)
+        {
+        mouse_x = Game_x(mouse_x);  mouse_y = Game_y(mouse_y);
+        if (abs(mouse_x - x) < 15 && abs(mouse_y - y) < 15)  return true;
+        return false;
+        }
+//============================= GECS   end =============================================
 
 //============================= класс дороги =====================================
 //class ROAD
