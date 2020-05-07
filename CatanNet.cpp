@@ -954,7 +954,7 @@ void ServerClientStreamFunc(int index)
 			strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());	_itoa(Game_Step.current_step, &msg[50], 10);
 			Send_To_All(msg, sizeof(msg));
 		
-			mtx1.lock();  std::cout << "SERVER  Передаю ход игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
+			mtx1.lock();  std::cout << "SERVER  Передача хода игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
 			//передать всем что ход передан игроку № для броска кубика
 			strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_ACTIVE_PLAYER].c_str());	_itoa(Game_Step.current_active_player, &msg[50], 10);
 			Send_To_All(msg, sizeof(msg));    

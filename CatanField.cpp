@@ -266,7 +266,7 @@ void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
                 PtrGecs->at(ii).type = Simple_Game[i];
                 if (Simple_Game[i] == RESURS::PIRATE)
                     {
-                    std::cout << " Bandit  Gecs N " <<  ii << " \n";
+                    //std::cout << " Bandit  Gecs N " <<  ii << " \n";
                     bandit_Gecs = ii;
                     }
            
@@ -284,10 +284,7 @@ void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
 //=========================================================================
 bool isRoadNear(int index,int player_num)
 {
-    int nx = nodePtr->at(index).n_x;
-    int ny = nodePtr->at(index).n_y;
-
-    for (auto& r : *roadPtr)
+ for (auto& r : *roadPtr)
     {
         if (r.Node_num_start == index || r.Node_num_end == index)
             if (r.owner == player_num)  return true;               

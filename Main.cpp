@@ -11,6 +11,7 @@
 #include "CatanField.h"
 #include "Catan_View.h"
 #include "Catan_Step.h"
+#include "Catan_Count.h"
 
 // sfml-graphics-d.lib;sfml-window-d.lib;sfml-system-d.lib;%(AdditionalDependencies)  рабочее
 // smfl - graphics - d.lib; smfl - window - d.lib; smfl - system - d.lib; % (AdditionalDependencies)
@@ -137,6 +138,12 @@ int main()
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))  { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
+            //отслеживает факт нажатия R - тест подсчета длины дороги только для сервера
+            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::R && player_num == 0)
+            {
+                Count_Road_Length(1);   //тестирует подсчет дорог для 1 игрока
+            }
+
             //отслеживает факт нажатия SPACE - завершение хода
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
                   {
@@ -211,6 +218,7 @@ int main()
                     if (pixelPos.x > 420 && pixelPos.x < 480) { CARD_type_move = RESURS::BREAD;     dX = pixelPos.x - 420; }
                     if (pixelPos.x > 480 && pixelPos.x < 540) { CARD_type_move = RESURS::STONE;     dX = pixelPos.x - 480; }
                     if (pixelPos.x > 540 && pixelPos.x < 600) { CARD_type_move = RESURS::OVCA;      dX = pixelPos.x - 540; }
+                    if (st == 4 && Game_Step.step[4].roll_2_dice == 1)  CARD_ismove = false;
                 }
                 
                 //кубик
@@ -246,6 +254,7 @@ int main()
                   auto coord = sprite_village.getPosition();
                   dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                   if(Game_Step.step[st].flag_set_one_Village || Game_Step.step[st].flag_setVillage)   village_ismove = true;
+                  if (player_num != Game_Step.current_active_player)  village_ismove = false;
                   if(st == 4 && Game_Step.step[4].roll_2_dice == 1 )   village_ismove = false;
                   if (st == 4)
                      {
@@ -271,7 +280,7 @@ int main()
                //road - установка
                if(sprite_road.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //road
                    {
-                   //std::cout << "  Road selected  " << std::endl;
+                   std::cout << "  Road selected  " << std::endl;
                    auto coord = sprite_road.getPosition();
                    dX = pixelPos.x - coord.x;    dY = pixelPos.y - coord.y;
                    if (Game_Step.step[st].flag_set_Road || Game_Step.step[st].flag_set_one_Road)   road_ismove = true;
@@ -434,7 +443,7 @@ int main()
         if (flag_draw_gecs == true) DrawCATAN19(&window);
         if (flag_draw_gecs_num == true) DrawGecsNum(&window, &Gecs);
         if(flag_draw_gecs == true)  DrawGecs(&window, &Gecs);
-        DrawRoads(&window, &Field,&Roads);
+        DrawRoads(&window, &Field, &Roads);
         
         if (flag_draw_node == true)  DrawNodes(&window, &Field);
                 else  DrawNodesInfo(&window, &Field);

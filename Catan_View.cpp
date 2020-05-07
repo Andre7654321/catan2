@@ -4,6 +4,7 @@
 #include "CatanField.h"
 #include "Catan_View.h"
 #include "Catan_Step.h"
+#include "Catan_Count.h"
 
 
 int flag_font_load = 0;
@@ -210,12 +211,13 @@ sf::Sprite sprite_road;
 //================================================================
 //  прорисовка 1 деревни по заданным координатам
 //================================================================
-void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale,int angle)
+void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale, int angle)
 {
+    if (player < 0) return;
+
     if (flag_texture_road_set == 0)
     {
         flag_texture_road_set = 1;
-
         texture_road[0].loadFromFile("img/Road_yellow.png");
         texture_road[1].loadFromFile("img/Road_red.png");
         texture_road[2].loadFromFile("img/Road_blue.png");
@@ -224,13 +226,13 @@ void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale,int a
     }
     sprite_road.setTexture(texture_road[player]);
 
-    
     auto size = sprite_road.getTexture()->getSize();
     if (angle)
         {
         sprite_road.setOrigin((size.x / 2), (size.y / 2));
         sprite_road.rotate(angle);
         }
+
     sprite_road.setPosition(x, y);
     sprite_road.setScale(scale, scale);
     win->draw(sprite_road);
@@ -320,7 +322,7 @@ void DrawPlayer(sf::RenderWindow* win)
             }
     }
 
-    if (player_num != 0)   //для сервера не рисуем
+    if (player_num > 0)   //для сервера не рисуем
     {
         //фишки города, деревни, дороги
         DrawTown(win, player_num, f_x + 340, f_y - 10, 0.2);
@@ -330,13 +332,18 @@ void DrawPlayer(sf::RenderWindow* win)
         DrawRoad(win, player_num, f_x + 465, f_y + 20, 0.2, 0);
         text2.setPosition(f_x + 510, f_y + 20);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
 
-        //счет
-        if (player_num != 0)
+        //счет и дорога
+        if (player_num > 0)
         {
             strcpy_s(str, "Score : ");
             text2.setPosition(f_x + 600, f_y);  text2.setString(str);  win->draw(text2);
             _itoa_s(CountScore(player_num), str, 10);
             text2.setPosition(f_x + 670, f_y);  text2.setString(str);  win->draw(text2);
+
+            strcpy_s(str, "Max Road : ");
+            text2.setPosition(f_x + 600, f_y + 30);  text2.setString(str);  win->draw(text2);
+            _itoa_s(Count_Road_Length(player_num), str, 10);
+            text2.setPosition(f_x + 700, f_y + 30);  text2.setString(str);  win->draw(text2);
         }
     }
 
@@ -347,9 +354,9 @@ void DrawPlayer(sf::RenderWindow* win)
         if (i == player_num) continue;   //свой номер
         if (player[i].active == true)
             {
-            DrawCard(win, 1, 80, 100 + i * 140, 0.5f);
+            DrawCard(win, 1, 80, 70 + i * 140, 0.5f);
             _itoa_s(i, str, 10);   strcat_s(str, " - player");
-            text2.setPosition(50, 190 + i* 140);  
+            text2.setPosition(50, 160 + i* 140);  
             text2.setString(str);   win->draw(text2);
             }
        }
@@ -382,20 +389,24 @@ int Game_y(int y)
     return y;
 }
 
+//----------------------------------------------------------------------
+sf::Texture textute_fon;
+sf::Sprite sprite_fon;
+int flag_load_fon = 0;
 //=====================================================================
 //  фон основного поля
 //=====================================================================
 void DrawCATAN19(sf::RenderWindow* win)
 {
-    sf::Sprite sprite;   
-    sf::Texture textute;
-    textute.loadFromFile("img/CATAN19.png");
+    if (flag_load_fon == 0)
+        {
+        textute_fon.loadFromFile("img/CATAN19.png");
+        sprite_fon.setTexture(textute_fon);
+        }
 
-    sprite.setPosition(Field_CATAN_x - 27 * field_scale, Field_CATAN_y - 57 * field_scale);
-    sprite.setTexture(textute);
-
-    sprite.setScale(0.98f * field_scale, 0.92f * field_scale);
-    win->draw(sprite);
+    sprite_fon.setPosition(Field_CATAN_x - 27 * field_scale, Field_CATAN_y - 57 * field_scale);
+    sprite_fon.setScale(0.98f * field_scale, 0.92f * field_scale);
+    win->draw(sprite_fon);
 
     return;
 }
@@ -564,6 +575,8 @@ void DrawRoads(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector
 
   for (auto &rr : *Rd)
     {
+    if (rr.owner < 0) continue;
+
     start = rr.Node_num_start;
     end = rr.Node_num_end;
     int r_x = (PtrNode->at(start).n_x + PtrNode->at(end).n_x) / 2;
