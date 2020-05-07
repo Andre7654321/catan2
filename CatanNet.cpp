@@ -114,17 +114,19 @@ char msg[256];
 int i;
 
 //проверить есть ли в банке обмена 4 одинаковые карточки
-for(i = 1;i < 10;i++)
-   {
-	if (ChangeBANK[player_num][i] >= 4)  i = 20;
-   }
+for(i = 1;i < 10;i++)   { if (ChangeBANK[player_num][i] >= 4)  i = 20;  }
+if (i < 20){	std::cout << " В банке нехватает ресурсов для обмена " << std::endl;  return false;  }
 
-if (i < 20)
-{
-	std::cout << " В банке нехватает ресурсов для обмена " << std::endl;
-	return false;
-}
+//общий банк карточек - посылаем, так как мог измениться до обмена
+strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
+memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
+send(Connection, msg, sizeof(msg), NULL);
 
+//ресурсы  игрока - посылаем так как могли измениться до обмена
+strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
+_itoa(player_num, &msg[50], 10);     //номер игрока
+memcpy(&msg[54], player[player_num].resurs, 10 * sizeof(int));   //карточки
+send(Connection, msg, sizeof(msg), NULL);
 
 //переслать на сервер свой обменный банк и требуемый от банка ресурс
 strcpy_s(msg, Map_Command[NET_COMMAND::ASK_CHANGE_BANK].c_str());
@@ -195,20 +197,20 @@ int i = 0;
 
 	//цикл по узлам катана
     strcpy_s(msg, Map_Command[NET_COMMAND::NODE_ARRAY].c_str());   //копируем сначала, так как после может испортить данные в 50 ячейке
-    intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = 0;  //в 1 ячейке номер стартового узла
+    intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = 0;  //в 1 ячейке номер стартового узла в передаваемом пакете
 	intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
     for (int p = 0; p < nodePtr->size(); p++)
 	   {
 	   *intPtr++ = nodePtr->at(p).owner;   
 	   *intPtr++ = nodePtr->at(p).object;
 	   i++;
-	   if (i == 20 || p == nodePtr->size()-1)                //как пакет достигает 20 узлов - отправляем 
+	   if (i == 20 || p == nodePtr->size()-1)                        //как пакет достигает 20 узлов - отправляем 
 	        {
-		    intPtr = (int*)&msg[50];	*intPtr = i;                                 //в 50 ячейке количество узлов           
+		    intPtr = (int*)&msg[50];	*intPtr = i;                 //в 50 ячейке количество узлов  в пакете         
 			send(Connection, msg, sizeof(msg), NULL);
 			i = 0;
 			intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = p+1;   //в 1 ячейке номер стартового узла
-			intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
+			intPtr = (int*)&msg[50];    intPtr += 2;                 //встаем на 2 элемент массива   0, 1, 2
 	        }
 	   }
 
@@ -401,12 +403,11 @@ int Count_Num_players()
 return num;
 }
 
-
-//============================================================================
+//===============================================================================================  CLIENT NET
  //функция клиента для обработки сообщений от серверной части
  //при получении пакета выводит сообщение в чат если это сообщение игрока
  //если это системное сообщение CATAN обрабатывает
- //============================================================================
+ //==============================================================================================
 void ClientHandler(int index)
 {
 	int ret = 1;
@@ -634,9 +635,9 @@ int init_WSA(void)
 	return 0;
 }
 
-//=============================================================================================================
-//     Функция потока подключений серверная часть ===================================
-//=============================================================================================================
+//==============================================================================================  CONNECT
+//     Функция потока подключений серверная часть =
+//==============================================================================================
 void Check_Connections(void)
 {
 	int i;
@@ -730,7 +731,7 @@ void Check_Connections(void)
 	std::cout << " SERVER: Поток подключений завершает работу \n  " << std::endl;
 }
 
-//================================= SERVER STREAM FUNCTION ======================================
+//================================= SERVER STREAM FUNCTION ======================================  SERVER NET
 //функция для приема сообщений от клиентов и отправке всем, кроме того от кого оно пришло прислал
 //===============================================================================================
 void ServerClientStreamFunc(int index)
@@ -763,10 +764,11 @@ void ServerClientStreamFunc(int index)
 	    //если системное сообщение $CATAN&
 		if (str.compare(CATAN_command) == 0)   //сравнение со строкой $CATAN&
 		{
-			str.assign(msg, 0, strlen(msg));
+			str.assign(msg, 0, strlen(msg));  //копируется 0 термин строка без бинарного хвоста в начало строки str
 			//std::cout << " Get CATAN COMMAND  " << std::endl;
 
-			//определить тип команды и вывести сообщение (В str у нас первая строка взятая из пакета)
+			//определить тип команды перебором сравнения массива со строкой  
+			//(В str у нас первая строка взятая из пакета)
 			for (const auto& key : Map_Command)
 			    {
 				if (key.second == str)  Command = key.first;
@@ -1081,16 +1083,7 @@ void ServerClientStreamFunc(int index)
 				player[pl].resurs[type_put] += 1;   CARD_Bank[type_put] -= 1;
 				player[pl].resurs[type_get] -= 4;   CARD_Bank[type_get] += 4;
 
-				//переслать общий банк всем
-				strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
-				memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
-				Send_To_All(msg, sizeof(msg));
-
-				//переслать банк игрока заявителю
-				strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
-				_itoa(pl, &msg[50], 10);                                 //номер игрока
-				memcpy(&msg[54], player[pl].resurs, 10 * sizeof(int));   //карточки
-				send(Connections[pl - 1], msg, sizeof(msg), NULL);
+				Send_To_All_Info_Resurs();
 
 				continue;
 			}
@@ -1114,6 +1107,7 @@ void ServerClientStreamFunc(int index)
 		}   //for
 	}
 }
+
 //=======================================================================
 //отправка сообщения всем игрокам
 //=======================================================================
@@ -1157,7 +1151,6 @@ void Send_To_All_Info_Resurs()
 
  return;
 }
-
 
 //============================================================================
  //   функция чата клиента для ввода сообщений другим пользователям

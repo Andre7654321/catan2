@@ -17,9 +17,9 @@ extern int ChangeBANK[5][10];
 
 extern GAME_STEP Game_Step;
 
-int Field_CATAN_x = 230;
-int Field_CATAN_y  = 120;
-float field_scale = 1.3f;
+int Field_CATAN_x = 280;
+int Field_CATAN_y  = 160;
+float field_scale = 1.1f;
 
 
 sf::Sprite bandit_sprite;
@@ -320,37 +320,36 @@ void DrawPlayer(sf::RenderWindow* win)
             }
     }
 
-    //фишки города, деревни, дороги
-    DrawTown(win, player_num, f_x + 340, f_y - 40, 0.2);
-    text2.setPosition(f_x + 400, f_y - 40);     _itoa_s(player[player_num].town, str, 10);    text2.setString(str); win->draw(text2);
-    DrawVillage(win, player_num, f_x + 340, f_y + 30, 0.2);
-    text2.setPosition(f_x + 400, f_y + 30);     _itoa_s(player[player_num].village, str, 10);  text2.setString(str);  win->draw(text2);
-    DrawRoad(win, player_num, f_x + 465, f_y, 0.2,0);
-    text2.setPosition(f_x + 500, f_y);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
+    if (player_num != 0)   //для сервера не рисуем
+    {
+        //фишки города, деревни, дороги
+        DrawTown(win, player_num, f_x + 340, f_y - 10, 0.2);
+        text2.setPosition(f_x + 400, f_y - 10);     _itoa_s(player[player_num].town, str, 10);    text2.setString(str); win->draw(text2);
+        DrawVillage(win, player_num, f_x + 340, f_y + 50, 0.2);
+        text2.setPosition(f_x + 400, f_y + 50);     _itoa_s(player[player_num].village, str, 10);  text2.setString(str);  win->draw(text2);
+        DrawRoad(win, player_num, f_x + 465, f_y + 20, 0.2, 0);
+        text2.setPosition(f_x + 510, f_y + 20);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
 
-    //счет
-    if (player_num != 0)
+        //счет
+        if (player_num != 0)
         {
-        strcpy_s(str, "Score : ");
-        text2.setPosition(f_x + 600, f_y);  text2.setString(str);  win->draw(text2);
-        _itoa_s(CountScore(player_num), str, 10);
-        text2.setPosition(f_x + 670, f_y);  text2.setString(str);  win->draw(text2);
+            strcpy_s(str, "Score : ");
+            text2.setPosition(f_x + 600, f_y);  text2.setString(str);  win->draw(text2);
+            _itoa_s(CountScore(player_num), str, 10);
+            text2.setPosition(f_x + 670, f_y);  text2.setString(str);  win->draw(text2);
         }
+    }
 
 
     //если есть еще активные игроки - прорисовать их на экране
-    auto right = false;  //не занята сторона справа
-    auto left = false;
-    for(int i = 1;i < 4;i++)
+    for(int i = 1;i < 5;i++)
        {
         if (i == player_num) continue;   //свой номер
         if (player[i].active == true)
             {
-            _itoa_s(i, str, 10);
-            if (!right) {   right = true;    text2.setPosition(1050, 250);   DrawCard(win, 1, 1080, 300, 0.5f);   }
-                else if(!left) {    left = true;    text2.setPosition(50, 250);    DrawCard(win, 1, 50, 300, 0.5f);     }
-                     else             {     text2.setPosition(50, 450);  DrawCard(win, 1, 50, 500, 0.5f);              }
-            strcat_s(str, " - player");
+            DrawCard(win, 1, 80, 100 + i * 140, 0.5f);
+            _itoa_s(i, str, 10);   strcat_s(str, " - player");
+            text2.setPosition(50, 190 + i* 140);  
             text2.setString(str);   win->draw(text2);
             }
        }
@@ -381,6 +380,24 @@ int Game_y(int y)
 {
     y -= Field_CATAN_y;  y /= (3.03f * field_scale);
     return y;
+}
+
+//=====================================================================
+//  фон основного поля
+//=====================================================================
+void DrawCATAN19(sf::RenderWindow* win)
+{
+    sf::Sprite sprite;   
+    sf::Texture textute;
+    textute.loadFromFile("img/CATAN19.png");
+
+    sprite.setPosition(Field_CATAN_x - 27 * field_scale, Field_CATAN_y - 57 * field_scale);
+    sprite.setTexture(textute);
+
+    sprite.setScale(0.98f * field_scale, 0.92f * field_scale);
+    win->draw(sprite);
+
+    return;
 }
 
 //=====================================================================
@@ -459,24 +476,56 @@ void DrawGecs(sf::RenderWindow* window,std::vector<GECS>* Gs)
 }
 
 //========================================================================
+//   города в узлах, деревни
+//========================================================================
 void DrawNodes(sf::RenderWindow* window, std::vector<NODE>* PtrNode)
 {
+    for (auto& n : *PtrNode)
+    {
+    if (n.object == VILLAGE)  DrawVillage(window, n.owner, Draw_x(n.n_x) - 21, Draw_y(n.n_y) - 15, 0.2f);
+    if (n.object == TOWN)    DrawTown(window, n.owner, Draw_x(n.n_x) - 21, Draw_y(n.n_y) - 15, 0.2f);
+    }
+
+ return;
+}
+
+//========================================================================
+//  прорисовка системной информации по свойствам узлов
+//========================================================================
+void DrawNodesInfo(sf::RenderWindow* window, std::vector<NODE>* PtrNode)
+{
+ char str[50];
+
  //фигура под прорисовку области узла  при отладке
  sf::CircleShape NODE_area(17.f);
  NODE_area.setOutlineThickness(1);
  NODE_area.setOutlineColor(sf::Color::Color(220, 250, 70));
  NODE_area.setFillColor(sf::Color::Transparent);
 
+ sf::Text text2("", font, 12);   //более мелкий шрифт для подписей
+
  for (auto& n : *PtrNode)
  {
      NODE_area.setPosition(Draw_x(n.getNode_x()) - 17, Draw_y(n.getNode_y()) - 16);
-     //window->draw(NODE_area);
+     window->draw(NODE_area);
 
-     if (n.owner != -1)
-     {
-         if (n.object == VILLAGE)  DrawVillage(window,n.owner, Draw_x(n.n_x) - 21, Draw_y(n.n_y) - 15, 0.2f);
-         if (n.object == TOWN)    DrawTown(window, n.owner, Draw_x(n.n_x) - 21, Draw_y(n.n_y) - 15, 0.2f);
-     }
+     //номер узла
+     text2.setFillColor(sf::Color::White);
+     text2.setPosition(Draw_x(n.getNode_x()) - 3, Draw_y(n.getNode_y()) - 10);
+     _itoa_s(n.number, str, 10);
+     text2.setString(str); window->draw(text2);
+
+     //тип узла - бонус для обмена
+     text2.setPosition(Draw_x(n.getNode_x()) + 16, Draw_y(n.getNode_y()) - 10);
+     //_itoa_s(n.type, str, 10);
+     if (n.type == -1)  strcpy_s(str, " -- ");
+     if (n.type == 0)   { strcpy_s(str, "   3:1"); text2.setFillColor(sf::Color::Yellow);  }
+     if (n.type == (int)RESURS::WOOD) { strcpy_s(str, " WOOD 2:1");     text2.setFillColor(sf::Color::Color(100, 255, 100)); }
+     if (n.type == (int)RESURS::OVCA) { strcpy_s(str, " OVCA 2:1");    text2.setFillColor(sf::Color::Color(150, 255, 150)); }
+     if (n.type == (int)RESURS::STONE) { strcpy_s(str, " STONE 2:1");  text2.setFillColor(sf::Color::Color(150,140,255)); }
+     if (n.type == (int)RESURS::BRICKS) { strcpy_s(str, " BRICKS 2:1");  text2.setFillColor(sf::Color::Red); }
+     if (n.type == (int)RESURS::BREAD)    {  strcpy_s(str, " BREAD 2:1");  text2.setFillColor(sf::Color::Yellow); }
+     text2.setString(str); window->draw(text2);
  }
 
  return;
@@ -485,24 +534,38 @@ void DrawNodes(sf::RenderWindow* window, std::vector<NODE>* PtrNode)
 //=======================================================================================
 //  прорисовка сетки дорог
 //=======================================================================================
+void DrawRoadsNet(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector<ROAD>* Rd)
+{
+    int start, end;
+    //задание конструктора фигуры - линии 
+    //тонкая линия дороги - не требует повората спрайта, рисуется из начальных координат узла до конечных
+    sf::VertexArray line(sf::Lines, 2);
+
+    for (auto& rr : *Rd)
+    {
+        start = rr.Node_num_start;
+        line[0].position = sf::Vector2f(Draw_x(PtrNode->at(start).n_x), Draw_y(PtrNode->at(start).n_y));
+        end = rr.Node_num_end;
+        line[1].position = sf::Vector2f(Draw_x(PtrNode->at(end).n_x), Draw_y(PtrNode->at(end).n_y));
+        line[0].color = sf::Color::Color(30, 250, 220);
+        line[1].color = sf::Color::Blue;    //цвет без градиента от точки до точки
+        window->draw(line);
+    }
+    return;
+};
+//--------------------------------------------------------------------------------
+
+//=======================================================================================
+//  прорисовка  дорог в игре
+//=======================================================================================
 void DrawRoads(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector<ROAD>* Rd)
 {
  int start, end;
 
- //задание конструктора фигуры - линии для прорисовки дороги на карте
- //тонкая линия дороги - не требует повората спрайта, рисуется из начальных координат узла до конечных
- sf::VertexArray line(sf::Lines, 2);
-
   for (auto &rr : *Rd)
     {
     start = rr.Node_num_start;
-    line[0].position = sf::Vector2f(Draw_x(PtrNode->at(start).n_x), Draw_y(PtrNode->at(start).n_y));
     end = rr.Node_num_end;
-    line[1].position = sf::Vector2f(Draw_x(PtrNode->at(end).n_x), Draw_y(PtrNode->at(end).n_y));
-    line[0].color = sf::Color::Color(30, 250, 220);
-    line[1].color = sf::Color::Blue;    //цвет без градиента от точки до точки
-    if (rr.owner == -1) {   window->draw(line); continue;   }
-
     int r_x = (PtrNode->at(start).n_x + PtrNode->at(end).n_x) / 2;
     int r_y = (PtrNode->at(start).n_y + PtrNode->at(end).n_y) / 2;
 
@@ -526,12 +589,11 @@ void DrawRoads(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector
 };
 //--------------------------------------------------------------------------------
 
-
 sf::Texture texture_card[10];
 int flag_texturecard_set = 0;
-
 //================================================================
 //  прорисовка 1 карточки ресурса по заданным координатам
+//=================================================================
 void DrawCard(sf::RenderWindow* win,int Type,int x,int y, float scale)
 {
  sf::Sprite sprite_card;

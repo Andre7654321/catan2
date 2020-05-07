@@ -22,7 +22,7 @@ std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 
 bool flag_draw_gecs = true;
 bool flag_draw_node = true;
-bool flag_draw_road = true;
+bool flag_draw_road_Net = true;
 bool flag_draw_gecs_num = false;
 extern int Field_CATAN_x;
 extern int Field_CATAN_y;
@@ -63,6 +63,9 @@ GAME_STEP Game_Step;
 int main()
 {
    setlocale(LC_ALL, "rus");
+
+
+   //std::cout << "=================== TEST  Sizeof(NODE) = " << sizeof(NODE)  << std::endl;
 
    CARD_Bank[(int)RESURS::WOOD] = 40; CARD_Bank[(int)RESURS::STONE] = 40; CARD_Bank[(int)RESURS::OVCA] = 40;
    CARD_Bank[(int)RESURS::BREAD] = 40; CARD_Bank[(int)RESURS::BRICKS] = 40;
@@ -107,9 +110,16 @@ int main()
     sf::RectangleShape Road(sf::Vector2f(60.f, 7.f));   //параметры  ширина и высота
     Road.setOrigin(0, 4);  //смещаем центр разворота в середину толщины линии
 
-    //--------------------------------------------------------------------------------------------
+    //-----------------------------  бонусы узлов  -------------------------------------------
+    Field.at(1).type  = 0;    Field.at(6).type = 0;  Field.at(10).type = 0;    Field.at(11).type = 0;  // 3:1
+    Field.at(52).type = 0;    Field.at(53).type = 0;  Field.at(27).type = 0;    Field.at(28).type = 0; // 3:1
+    Field.at(37).type = 1;    Field.at(45).type = 1;   //wood
+    Field.at(22).type = 2;    Field.at(23).type = 2;   //bricks
+    Field.at(47).type = 3;    Field.at(51).type = 3;   //bread
+    Field.at(39).type = 4;    Field.at(40).type = 4;   //stone
+    Field.at(4).type  = 5;    Field.at(17).type = 5;   //ovca
 
-    int st;
+    int st;  //номер текущего шага
     //main cycle ===============================================================================================
     while (window.isOpen())
     {
@@ -124,7 +134,7 @@ int main()
             //отслеживает состояние клавиш, а не факт нажатия
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))  {  flag_draw_gecs ? flag_draw_gecs = false : flag_draw_gecs = true; } 
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) { flag_draw_node ? flag_draw_node = false : flag_draw_node = true; }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road ? flag_draw_road = false : flag_draw_road = true; }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))  { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
             //отслеживает факт нажатия SPACE - завершение хода
@@ -173,7 +183,7 @@ int main()
             //если нажата клавиша мыши левая  
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
             {
-                //карточки  ресурсов банка
+                //карточки  ресурсов банка общего банка - обмен ресурсов
                 if (pixelPos.x > 10 && pixelPos.x < 250 && pixelPos.y > 10 && pixelPos.y < 70)
                 {
                     //std::cout << "  Bank Zone selected  " << std::endl;
@@ -190,7 +200,7 @@ int main()
                         }
                 }
                 
-                //карточки своих ресурсов
+                //карточки своих ресурсов - переноя в банк обмена
                 if (pixelPos.x > 300 && pixelPos.x < 600 && pixelPos.y > 830 && pixelPos.y < 910)
                 {
                     CARD_ismove = true;
@@ -220,7 +230,7 @@ int main()
                     }
                 }
                 
-               //bandit
+               //bandit - перестановка
                if (bandit_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
                {
                    std::cout << "  Bandit  selected  " << std::endl;
@@ -229,7 +239,7 @@ int main()
                    if (Game_Step.step[st].flag_bandit)    bandit_ismove = true;
                }
 
-               //village
+               //village - установка
                if (sprite_village.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //расположение деревни игрока
                   {
                   //std::cout << "  Village  selected  " << std::endl;
@@ -244,7 +254,7 @@ int main()
                      }
                   }
 
-               //town
+               //town - установка
                if (sprite_town.getGlobalBounds().contains(pixelPos.x, pixelPos.y))  
                   {
                    //std::cout << "  Town selected  "  << std::endl;
@@ -258,7 +268,7 @@ int main()
                        }
                    }
 
-               //road
+               //road - установка
                if(sprite_road.getGlobalBounds().contains(pixelPos.x, pixelPos.y))   //road
                    {
                    //std::cout << "  Road selected  " << std::endl;
@@ -420,19 +430,22 @@ int main()
         //---------------------------------------------------------------------------------------------------------------------------------------
         window.clear();
         //std::cout << " ================ Start_Draw Field ================= " << std::endl;
+        if (flag_draw_road_Net == true)  DrawRoadsNet(&window, &Field, &Roads);
+        if (flag_draw_gecs == true) DrawCATAN19(&window);
         if (flag_draw_gecs_num == true) DrawGecsNum(&window, &Gecs);
         if(flag_draw_gecs == true)  DrawGecs(&window, &Gecs);
-        if(flag_draw_road == true)  DrawRoads(&window, &Field,&Roads);
-        if (flag_draw_node == true)  DrawNodes(&window, &Field);
+        DrawRoads(&window, &Field,&Roads);
         
-
+        if (flag_draw_node == true)  DrawNodes(&window, &Field);
+                else  DrawNodesInfo(&window, &Field);
+        
         DrawResursBank(&window);    //ресурсы в банке не принадлежат игрокам
         DrawPlayer(&window);
         if(st == 4) DrawChangeBank(&window,150,650,player_num);
 
         if (bandit_ismove == true)  DrawBanditOnCoord(&window, pixelPos.x - dX, pixelPos.y - dY, 0.2f);
         else
-            {   DrawBandit(&window, &Gecs); }
+            {  if (flag_draw_gecs == true) DrawBandit(&window, &Gecs); }
 
         //если передвигается карта ресурса
         if (CARD_ismove)   DrawCard(&window,(int)CARD_type_move, pixelPos.x - dX, pixelPos.y - dY, 0.5f);

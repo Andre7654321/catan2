@@ -421,8 +421,7 @@ NODE::NODE() {};
  NODE::NODE(int x = 0, int y = 0) : n_x(x), n_y(y)
         {};
 
- 
- //вернет истину если узлом никто не владеет
+//вернет истину если узлом никто не владеет
  bool NODE::isNode_free(int index)
  {
      if (owner == -1) return true;
