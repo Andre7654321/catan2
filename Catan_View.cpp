@@ -10,15 +10,19 @@
 int flag_font_load = 0;
 sf::Font font;   //шрифт
 extern int CARD_Bank[10];
-extern PLAYER player[4];
+extern std::vector<IMP_CARD> improve_CARDS;
+extern std::vector<IMP_CARD> develop_CARDS[5]; //карты развития игроков
+extern PLAYER player[5];
+extern int limit_7[5];
 extern int player_num;
+extern int max_road_owner;
 
 //область обмена ресурсами
 extern int ChangeBANK[5][10];
 
 extern GAME_STEP Game_Step;
 
-int Field_CATAN_x = 280;
+int Field_CATAN_x = 330;
 int Field_CATAN_y  = 160;
 float field_scale = 1.1f;
 
@@ -122,13 +126,22 @@ void Draw_Step_Info(sf::RenderWindow* win)
 
     if (player_num == Game_Step.current_active_player && Game_Step.current_step >= 1)
         {
-        strcpy_s(str, "Your move");
+        strcpy_s(str, "Your move"); 
         text_step.setFillColor(sf::Color::Color(120, 255, 120));
-        if (Game_Step.step[4].flag_bandit == 1) { strcpy_s(str, "Move Banditos"); text_step.setFillColor(sf::Color::Color(250, 125, 120));  }
+        if (Game_Step.step[4].flag_bandit == 1) { strcpy_s(str, "  Move Banditos  "); text_step.setFillColor(sf::Color::Color(250, 125, 120));  }
+        if (isCardsDeletedAfterSeven() == false) { strcpy_s(str, "Wait for cut cards "); text_step.setFillColor(sf::Color::Color(250, 125, 120)); }
         text_step.setCharacterSize(50);  
         text_step.setString(str);
-        text_step.setPosition(500, 45);      win->draw(text_step);
+        text_step.setPosition(500, 41);      win->draw(text_step);
         }
+
+    if (player_num != Game_Step.current_active_player && limit_7[player_num] < getPlayerNumCardResurs(player_num) &&  limit_7[player_num] > 0)
+    {
+        strcpy_s(str, "Send cards to BANK");      text_step.setFillColor(sf::Color::Color(250, 125, 120));
+        text_step.setCharacterSize(50);
+        text_step.setString(str);
+        text_step.setPosition(500, 41);      win->draw(text_step);
+    }
          
     
 
@@ -244,7 +257,11 @@ void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale, int 
 //-----------------------------------------------------------------------
 
 sf::Sprite sprite_chBank;
+sf::Sprite sprite_chBank_clear;
+sf::Sprite sprite_take_card[5];
 sf::Texture texture_chBank_set;
+sf::Texture texture_chBank_clear;
+sf::Texture texture_take_card;
 int flag_texture_chBank_set = 0;
 
 //=====================================================================
@@ -259,22 +276,59 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
     {
     flag_texture_chBank_set = 1;
     texture_chBank_set.loadFromFile("img/ch_bank_grey.png");
+    texture_chBank_clear.loadFromFile("img/Crest_red.png");
+    texture_take_card.loadFromFile("img/Town_green.png");
     }
- sprite_chBank.setTexture(texture_chBank_set);
+ sprite_chBank.setTexture(texture_chBank_set);  
  sprite_chBank.setScale(0.8,0.8);
- sprite_chBank.setPosition(x, y);
- win->draw(sprite_chBank);
+ sprite_chBank.setPosition(x, y); 
+ win->draw(sprite_chBank); 
+ 
+ //кнопка очистки обмена
+ if (pl == player_num)
+     {
+     sprite_chBank_clear.setTexture(texture_chBank_clear);
+     sprite_chBank_clear.setScale(0.1, 0.1);
+     sprite_chBank_clear.setPosition(x + 200, y + 7);
+     win->draw(sprite_chBank_clear);
+     }
+
+ //кнопка разрешения забрать карту
+ if (pl != player_num && player[pl].flag_allow_get_card == 1)
+ {
+     sprite_take_card[pl].setTexture(texture_take_card);
+     sprite_take_card[pl].setScale(0.1, 0.1);
+     sprite_take_card[pl].setPosition(x + 195, y + 82);
+     win->draw(sprite_take_card[pl]);
+ }
 
  sf::Text text2("", font, 16);
  text2.setFillColor(sf::Color::Black);
  
+ //бонус  3:1
+ if (bonus31(pl) == true)
+ {
+     strcpy_s(str, " 3 : 1");  text2.setString(str);
+     text2.setPosition(x + 20, y + 12);
+     win->draw(text2);
+ }
+ //бонусы 2:1
+ int place = 0;
+ for(int i = 1;i < 6;i++)
+    {
+     if (bonus21(pl, i) == true)
+          {
+          DrawCard(win, i, x + 60 + 25*place, y + 1, 0.15);
+          place++;
+          }
+    }
+
  //сами ресурсы
  for (int i = 0; i < 10; i++)
     {
-     if(ChangeBANK[player_num][i] == 0) continue;  //если ресурса нет, то не прорисовываем
+     if(ChangeBANK[pl][i] == 0) continue;  //если ресурса нет, то не прорисовываем
 
     if (i == (int)RESURS::EMPTY) continue;
-
     if (i == (int)RESURS::FISH1) continue;
     if (i == (int)RESURS::FISH2) continue;
     if (i == (int)RESURS::FISH3) continue;
@@ -283,7 +337,7 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
     DrawCard(win,i, x + i * 35, y + 35, 0.3);
 
     //количество
-    _itoa_s(ChangeBANK[player_num][i], str, 10);
+    _itoa_s(ChangeBANK[pl][i], str, 10);
     text2.setPosition(x + i * 35 + 10, y + 85);
     text2.setString(str);
     win->draw(text2);
@@ -297,19 +351,57 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
 //=====================================================================
 void DrawPlayer(sf::RenderWindow* win)
 {
-    int f_x = 300;
+    int f_x = 200;
     int f_y = 830;
-    char str[90];
+    char str[90],str1[20];
 
     //std::cout << " =======  DRAW PLAYER FIELD ============== " << std::endl;
     
-    sf::Text text2("", font, 20); 
+    sf::Text text2("", font, 15); 
     text2.setFillColor(sf::Color::White);
 
+    //если есть еще активные игроки - прорисовать их в левой части поля ----------------------
+    int place = 0, num;
+    for (int i = 1; i < 5; i++)
+    {
+        if (i == player_num) continue;   //свой номер
+        if (player[i].active == true)
+        {
+            DrawTown(win, i, 30, 190 + place * 160, 0.2);
+            
+            //количество карт игрока
+            num = getPlayerNumCardResurs(i);  
+            strcpy_s(str, "Cards: ");   _itoa_s(num, str1, 10);   strcat_s(str, str1);
+            text2.setPosition(15, 135 + place * 160);    text2.setString(str);   win->draw(text2);
+
+            strcpy_s(str, "Score: ");  _itoa_s(CountScore(i), str1, 10);   strcat_s(str, str1);
+            text2.setPosition(15, 155 + place * 160);  text2.setString(str);  win->draw(text2);
+
+            _itoa_s(i, str, 10);   strcat_s(str, " - player");
+            text2.setPosition(10, 240 + place * 160);
+            text2.setString(str);   win->draw(text2);
+
+            //последний бросок кубика
+            if (player[i].last_dice != 0)
+                {
+                text2.setFillColor(sf::Color::Red);
+                strcpy_s(str, "Last dice: ");  _itoa_s(player[i].last_dice, str1, 10);   strcat_s(str, str1);
+                text2.setPosition(180, 240 + place * 160);  
+                text2.setString(str);  win->draw(text2);
+                text2.setFillColor(sf::Color::White);
+                }
+
+            if (Game_Step.current_step == 4)  DrawChangeBank(win, 90, 110 + 160 * place, i);
+            place++;
+        }
+    }    // end another players
+    //----------------------------------------------------------------------------------
+
+    // поле основного игрока -----------------------------------------------------------
     _itoa_s(player_num, str, 10);   strcat_s(str, " - player");
     if (player_num == 0)  strcpy_s(str, "Server Window for Control");
     text2.setString(str);
-    text2.setPosition(f_x, f_y - 40);      win->draw(text2);
+    text2.setPosition(f_x + 80, f_y - 40);      win->draw(text2);
 
     //начинаем с 1, так как начальный ресурс EMPTY
     //надо чтобы спрайт ресурса был доступен для перетаскивания в зону обмена
@@ -322,44 +414,55 @@ void DrawPlayer(sf::RenderWindow* win)
             }
     }
 
-    if (player_num > 0)   //для сервера не рисуем
+    if (player_num > 0)   //для сервера не рисуем фишки городов и деревень
     {
+        //количество карт игрока
+        num = getPlayerNumCardResurs(player_num);
+        strcpy_s(str, "Resurs: ");   _itoa_s(num, str1, 10);  strcat_s(str, str1);
+        text2.setPosition(f_x - 100, f_y + 20);    text2.setString(str);   win->draw(text2);
+
+        //последний бросок кубика
+        if (player[player_num].last_dice != 0)
+        {
+            text2.setFillColor(sf::Color::Red);      text2.setCharacterSize(55);
+            _itoa_s(player[player_num].last_dice, str, 10);
+            text2.setPosition(f_x - 90, f_y - 60);  text2.setString(str);  win->draw(text2);
+            text2.setFillColor(sf::Color::White);  text2.setCharacterSize(15);
+        }
+
         //фишки города, деревни, дороги
-        DrawTown(win, player_num, f_x + 340, f_y - 10, 0.2);
-        text2.setPosition(f_x + 400, f_y - 10);     _itoa_s(player[player_num].town, str, 10);    text2.setString(str); win->draw(text2);
+        DrawTown(win, player_num, f_x + 340, f_y - 0, 0.2);
+        text2.setPosition(f_x + 390, f_y - 0);     _itoa_s(player[player_num].town, str, 10);    text2.setString(str); win->draw(text2);
         DrawVillage(win, player_num, f_x + 340, f_y + 50, 0.2);
-        text2.setPosition(f_x + 400, f_y + 50);     _itoa_s(player[player_num].village, str, 10);  text2.setString(str);  win->draw(text2);
-        DrawRoad(win, player_num, f_x + 465, f_y + 20, 0.2, 0);
-        text2.setPosition(f_x + 510, f_y + 20);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
+        text2.setPosition(f_x + 390, f_y + 50);     _itoa_s(player[player_num].village, str, 10);  text2.setString(str);  win->draw(text2);
+        DrawRoad(win, player_num, f_x + 450, f_y + 20, 0.2, 0);
+        text2.setPosition(f_x + 495, f_y + 20);      _itoa_s(player[player_num].road, str, 10);    text2.setString(str);  win->draw(text2);
 
         //счет и дорога
         if (player_num > 0)
         {
             strcpy_s(str, "Score : ");
-            text2.setPosition(f_x + 600, f_y);  text2.setString(str);  win->draw(text2);
-            _itoa_s(CountScore(player_num), str, 10);
-            text2.setPosition(f_x + 670, f_y);  text2.setString(str);  win->draw(text2);
+            _itoa_s(CountScore(player_num), str1, 10); strcat_s(str, str1);
+            text2.setPosition(f_x + 180, f_y - 40);  text2.setString(str);  win->draw(text2);
 
             strcpy_s(str, "Max Road : ");
-            text2.setPosition(f_x + 600, f_y + 30);  text2.setString(str);  win->draw(text2);
-            _itoa_s(Count_Road_Length(player_num), str, 10);
-            text2.setPosition(f_x + 700, f_y + 30);  text2.setString(str);  win->draw(text2);
+            _itoa_s(Count_Road_Length(player_num), str1, 10);  strcat_s(str, str1);
+            text2.setPosition(f_x + 280, f_y - 40);  text2.setString(str);  win->draw(text2);
+
+            if (max_road_owner == player_num)  Draw_MaxWay(win, f_x + 850, f_y + 30);
+
+            //карты развития
+            Draw_Develop_Cards_Field(win);
         }
     }
-
-
-    //если есть еще активные игроки - прорисовать их на экране
-    for(int i = 1;i < 5;i++)
-       {
-        if (i == player_num) continue;   //свой номер
-        if (player[i].active == true)
+       else
             {
-            DrawCard(win, 1, 80, 70 + i * 140, 0.5f);
-            _itoa_s(i, str, 10);   strcat_s(str, " - player");
-            text2.setPosition(50, 160 + i* 140);  
-            text2.setString(str);   win->draw(text2);
+            //общий банк карт развития 
+            for (int i = 0; i < 10 && i < improve_CARDS.size(); i++)
+                 {
+                 DrawDevelopCard(win, (int)improve_CARDS.at(i).type, f_x + 350 + i * 50, f_y + 10, 0.45, 0);
+                 }
             }
-       }
 
     return;
 }
@@ -411,6 +514,7 @@ void DrawCATAN19(sf::RenderWindow* win)
     return;
 }
 
+//=====================================================================
 //=====================================================================
 void DrawGecsNum(sf::RenderWindow* window, std::vector<GECS>* Gs)
 {
@@ -615,6 +719,7 @@ void DrawCard(sf::RenderWindow* win,int Type,int x,int y, float scale)
     {
         flag_texturecard_set = 1;
 
+        texture_card[(int)RESURS::EMPTY].loadFromFile("img/Card_empty.png");
         texture_card[(int)RESURS::WOOD].loadFromFile("img/Card_wood.png");
         texture_card[(int)RESURS::STONE].loadFromFile("img/Card_stone.png");
         texture_card[(int)RESURS::BRICKS].loadFromFile("img/Card_bricks.png");
@@ -631,13 +736,166 @@ void DrawCard(sf::RenderWindow* win,int Type,int x,int y, float scale)
     return;
 }
 
+sf::Texture texture_d_card[10];
+sf::Sprite Active_develop_card[5];
+
+int flag_textureDcard_set = 0;
+//================================================================
+//  прорисовка 1 карточки развития
+//=================================================================
+void DrawDevelopCard(sf::RenderWindow* win, int Type, int x, int y, float scale,int status)
+{
+    sf::Sprite sprite_card;
+
+    if (flag_textureDcard_set == 0)
+    {
+        flag_textureDcard_set = 1;
+
+        texture_d_card[(int)IMP_TYPE::KNIGHT].loadFromFile("img/Card_knight.png");
+        texture_d_card[(int)IMP_TYPE::ROAD2].loadFromFile("img/Card_road2.png");
+        texture_d_card[(int)IMP_TYPE::RESURS1].loadFromFile("img/Card_resurs1.png");
+        texture_d_card[(int)IMP_TYPE::RESURS_CARD2].loadFromFile("img/Card_resurs_card2.png");
+        texture_d_card[(int)IMP_TYPE::POINT1].loadFromFile("img/Card_point1.png");
+    }
+
+    if (status == 1)
+       {
+        Active_develop_card[Type].setTexture(texture_d_card[Type]);
+        Active_develop_card[Type].setScale(scale, scale);
+        Active_develop_card[Type].setPosition(x, y);
+        win->draw(Active_develop_card[Type]);
+       }
+    else
+        {
+        sprite_card.setTexture(texture_d_card[Type]);
+        sprite_card.setScale(scale, scale);
+        sprite_card.setPosition(x, y);
+        win->draw(sprite_card);
+        }
+    return;
+}
+
+//================================================================
+//получение количества запрашиваемых карт развития в векторе игрока
+//================================================================
+int getNumDevelopCARD(IMP_TYPE type, int  status)
+{
+    int num = 0;
+
+    for (auto& elem : develop_CARDS[player_num])
+    {
+        if (elem.status == status && elem.type == type) num++;
+    }
+
+    return num;
+}
+//-----------------------------------------------------------------
+
+int develop_field_x = 730;
+int develop_field_y = 780;
+//================================================================
+//  область карточек развития
+//=================================================================
+void Draw_Develop_Cards_Field(sf::RenderWindow* win)
+{
+int num;
+char str[10];
+
+sf::Text text2("", font, 16);
+text2.setFillColor(sf::Color::White);
+
+// верхний ряд - активные карточки
+    
+    //активные рыцари
+    num = getNumDevelopCARD(IMP_TYPE::KNIGHT,0);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 10, 0.48,1);
+        text2.setPosition(develop_field_x + 64, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+       }
+
+    // 2 дороги
+    num = getNumDevelopCARD(IMP_TYPE::ROAD2,0);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 10, 0.48,1);
+        text2.setPosition(develop_field_x + 114, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::RESURS1,0);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 10, 0.48,1);
+        text2.setPosition(develop_field_x + 164, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2,0);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 10, 0.48,1);
+        text2.setPosition(develop_field_x + 214, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::POINT1,0);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 10, 0.48,1);
+        text2.setPosition(develop_field_x + 264, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::KNIGHT,-1);
+    if (num) {
+        //0 в конце - прорисовать с локальным спрайтом - не уктивный рыцарь не может быть выбран мышкой
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 300, develop_field_y + 10, 0.30,0);  
+        text2.setPosition(develop_field_x + 314, develop_field_y - 8);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        }
+
+    //------------- нижний ряд - сыгранные карты не выбираются мышкой --------------------------------------
+    num = getNumDevelopCARD(IMP_TYPE::KNIGHT, 1);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 95, 0.35, 0);
+        text2.setPosition(develop_field_x + 64, develop_field_y + 150);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+    }
+
+    num = getNumDevelopCARD(IMP_TYPE::POINT1, 1);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 95, 0.35, 0);
+        text2.setPosition(develop_field_x + 264, develop_field_y + 150);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+    }
+
+    return;
+}
+
+//================================================================
+//  прорисовка банка ресурсов - карточек ресурсов
+//================================================================
+void Draw_MaxWay(sf::RenderWindow* win,int x,int y)
+{
+    sf::Sprite sprite;
+    sf::Texture texture;
+
+    texture.loadFromFile("img/Max_way.png");
+    sprite.setTexture(texture);
+
+    sprite.setScale(0.3,0.3);
+    sprite.setPosition(x, y);
+    win->draw(sprite);
+}
+
 //================================================================
 //  прорисовка банка ресурсов - карточек ресурсов
 //================================================================
 void DrawResursBank(sf::RenderWindow* win)
 {
  //прямоугольник - область под банк ресурсов
- sf::RectangleShape Bank_area(sf::Vector2f(270.f, 100.f));   //параметры  ширина и высота
+ sf::RectangleShape Bank_area(sf::Vector2f(300.f, 95.f));   //параметры  ширина и высота
  Bank_area.setPosition(5, 5);    Bank_area.setOutlineThickness(2);
  Bank_area.setOutlineColor(sf::Color::Color(200, 200, 200));    Bank_area.setFillColor(sf::Color::Transparent);
 
@@ -662,5 +920,8 @@ void DrawResursBank(sf::RenderWindow* win)
 
  DrawCard(win, (int)RESURS::BREAD, 210, 10, 0.4);
  text2.setPosition(220, 70);    _itoa_s(CARD_Bank[(int)RESURS::BREAD], str, 10);    text2.setString(str);  win->draw(text2);
+
+ DrawCard(win, (int)RESURS::EMPTY, 260, 10, 0.4);
+ text2.setPosition(270, 70);    _itoa_s(improve_CARDS.size(), str, 10);    text2.setString(str);  win->draw(text2);
 
 }

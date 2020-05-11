@@ -21,6 +21,11 @@ void Ask_Send_Objects();
 int Count_Num_players();
 void InitChange_BANK();
 bool AskChangeWithBank(RESURS);
+bool AskBuyImproveCARD();
+void AskSendCardsToBank();
+void Info_Change_Bank();
+void AskTakeRandomCardFromPlayer(int);
+void AskPlayDevelopCard(IMP_TYPE);
 
 void Say_Start();
 void Say_Move_Over();
@@ -30,6 +35,14 @@ void Say_Move_Banditos();
 
 void Send_To_All(char* , int);
 void Send_To_All_Info_Resurs();
+void Send_To_All_Info_Nodes();
+void Send_To_All_Info_Change_Area(int);
+void Send_To_All_Info_Max_Way();
+void Send_To_All_Develop_CARDS(int);
+void Send_To_All_Improve_CARDS();
+
+void Send_roads();
+void Send_nodes();
 
 
 #endif

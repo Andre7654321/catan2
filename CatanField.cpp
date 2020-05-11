@@ -12,8 +12,14 @@ extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов пол€
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 extern PLAYER player[5];
+extern int limit_7[5];
+extern int player_num;
 extern int CARD_Bank[10];
+extern int ChangeBANK[5][10];
+extern std::vector<IMP_CARD> develop_CARDS[5]; //карты развити€ игроков
+
 extern int bandit_Gecs;
+extern int max_road_owner;
 
 
 //размер 15 на 20 - универсальный дл€ большого пол€
@@ -84,6 +90,85 @@ PLAYER::PLAYER()
 };
 //============================= PLAYER   end =============================================
 
+
+//===========================================================================
+// возвращает тип забираемого ресурса
+//===========================================================================	
+int TakeRandomCardFromPl(int pl_donor)
+{
+    int type = 0, i = 0;
+
+   int num = getPlayerNumCardResurs(pl_donor);
+   if (num == 0)  return 0;
+
+   /*
+    for (int i = 1; i < 6; i++)
+       {
+        if (player[pl_donor].resurs[i] > 0)  type = i;
+       }
+       */
+    while (type == 0)
+    {
+        i = rand() % 5 + 1;
+        if (player[pl_donor].resurs[i] > 0)  type = i;
+    }
+
+return type;
+}
+
+//===========================================================================
+// возвращает true если вокруг указанного гекса есть чужие города,
+// игрокам около гекса бандита выставл€етс€ флаг разрешающий забрать у них карту
+//===========================================================================	
+bool isAnyAlienObjectNearGecs(int gecs,int pl)
+{
+ bool flag = false;
+
+    for (auto node : *nodePtr)
+        {
+        if(abs(node.n_x - gecsPtr->at(gecs).x) > 24  || abs(node.n_y - gecsPtr->at(gecs).y) > 24) continue;
+
+        if (node.owner != -1 && node.owner != pl)
+            {
+            flag = true;
+            player[node.owner].flag_allow_get_card = 1;    //разрешение забрать N карт активному игроку хода
+            }
+        }
+
+    return flag;
+}
+
+//===========================================================================
+// возвращает true если игроки скинули карты после броска 7
+//===========================================================================									  
+bool isCardsDeletedAfterSeven()
+{
+    for (int i = 1; i < 5; i++)
+        {
+        if (i == player_num) continue;
+        if (limit_7[i] == 0)  continue;
+        if (getPlayerNumCardResurs(i) > limit_7[i])  return false;
+        }
+
+ return true;
+}
+
+//===========================================================================
+// возвращает количество карт ресурса у игрока
+//===========================================================================									  
+int getPlayerNumCardResurs(int pl)
+{
+    int sum = 0;
+
+    sum += player[pl].resurs[(int)RESURS::WOOD];
+    sum += player[pl].resurs[(int)RESURS::STONE];
+    sum += player[pl].resurs[(int)RESURS::BRICKS];
+    sum += player[pl].resurs[(int)RESURS::OVCA];
+    sum += player[pl].resurs[(int)RESURS::BREAD];
+
+ return sum;
+}
+
 //=========================================================================
 // ѕодсчет очков пока без дорог
 //=========================================================================
@@ -97,8 +182,16 @@ int CountScore(int pl)
      if (n.object == VILLAGE && n.owner == pl) score += 1;
      if (n.object == TOWN  && n.owner == pl) score += 2;
     }
+
  //дорога
- //карточки развити€ - очки + войско
+ if (max_road_owner == pl) score += 2;
+
+ //карточки развити€ - очки         +      войско ???
+ for (auto& elem : develop_CARDS[pl])
+     {
+     if (elem.status == 1 && elem.type == IMP_TYPE::POINT1)  score += 1;
+     }
+
  //гавани
 
  return score;
@@ -124,7 +217,7 @@ void Step_Resurs(int dice2)
             {
              if (i == bandit_Gecs)    //пираты  сто€т на гексе
                 {
-                std::cout << " Gesc " << i << " resurs -  " << resurs_name[(int)g.type] << " под Ѕандитами " << std::endl;
+                //std::cout << " Gesc " << i << " resurs -  " << resurs_name[(int)g.type] << " под Ѕандитами " << std::endl;
                 i++;   
                 continue;
                 }
@@ -140,8 +233,9 @@ void Step_Resurs(int dice2)
                        else continue;
                    }
 
-             player[nd.owner].resurs[(int)g.type] += num;
-             std::cout << "  ¬ыдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  »гроку " << nd.owner << std::endl;
+             player[nd.owner].resurs[(int)g.type] += num;  //в банк игрока
+             ChangeBANK[nd.owner][(int)g.type] += num;     //в обменный банк игрока дл€ инфо
+             //std::cout << "  ¬ыдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  »гроку " << nd.owner << std::endl;
             }
         i++;
         }  //for 2
@@ -151,7 +245,7 @@ void Step_Resurs(int dice2)
 }
 
 //========================================================================================
-// получить ресурсы с окружающих переданную точку гексов
+// получить ресурсы 1 игроку на 3 шаге с окружающих переданную точку гексов
 //========================================================================================
 void Get_Resurs(int village_node,int player_num)
 {
@@ -173,7 +267,7 @@ void Get_Resurs(int village_node,int player_num)
            {
             CARD_Bank[(int)g.type] -= 1;
             player[player_num].resurs[(int)g.type] += 1;
-            std::cout << "  ¬ыдан 1 resurs -  " << resurs_name[(int)g.type] << "  »гроку " << player_num  << std::endl;
+            //std::cout << "  ¬ыдан 1 resurs -  " << resurs_name[(int)g.type] << "  »гроку " << player_num  << std::endl;
            }
        }
 

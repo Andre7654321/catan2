@@ -10,8 +10,29 @@ bool isRoadNear(int, int);
 void Get_Resurs(int, int);
 void Step_Resurs(int);
 int CountScore(int );
+int getPlayerNumCardResurs(int);
+bool isCardsDeletedAfterSeven();
+bool isAnyAlienObjectNearGecs(int,int);
+int TakeRandomCardFromPl(int);
 
 //---------------------------------------------------------------------------------
+//перечисление карт развития
+enum class IMP_TYPE
+{
+	KNIGHT,
+	ROAD2,
+	RESURS1,
+	RESURS_CARD2,
+	POINT1,
+};
+
+class IMP_CARD
+{
+public:
+	int status;
+	IMP_TYPE type;
+};
+
 //перечисление видов ресурсов
 enum class RESURS
 {
@@ -49,6 +70,8 @@ public:
 	bool active = false;
 	int first_roll = 0;
 	int last_village_node = -1;
+	int flag_allow_get_card = 0;
+	int last_dice = 0;
 	PLAYER();
 };   //============================= PLAYER   end =============================================
 //----------------------------------------------------------------------------

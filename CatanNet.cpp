@@ -14,12 +14,14 @@
 #include "CatanNet.h"
 #include "CatanField.h"
 #include "Catan_Step.h"
+#include "Catan_Count.h"
 
 #pragma warning(disable: 4996)
 
 //внешние глобальные переменные
 extern int player_num;
 extern int bandit_Gecs;
+extern int max_road_owner;
 
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
@@ -37,6 +39,9 @@ std::mutex mtx1;    //защищает поток сообщений cout
 extern PLAYER player[5];
 extern GAME_STEP Game_Step;
 extern int CARD_Bank[10];
+extern std::vector<IMP_CARD> improve_CARDS;
+extern std::vector<IMP_CARD> develop_CARDS[5];
+extern int limit_7[5];
 
 extern std::string resurs_name[10];
 
@@ -73,6 +78,17 @@ PLAYER_OBJECTS,
 DICE_SEVEN,
 BANDIT_GECS,
 ASK_CHANGE_BANK,
+PLAYER_CHANGE_AREA,
+MAX_WAY_OWNER,
+SEND_CARDS_TO_BANK,
+INFO_CHANGE_BANK,
+TAKE_CARD_FROM_PLAYER,
+ASK_BUY_IMPROVE_CARD,
+INFO_IMP_CARDS,        //банк карт развития
+DEVELOP_VECTOR,
+LAST_DICE,
+PLAY_DEVELOP_CARD,
+PLAY_KNIGHT
 };
 
 std::map<NET_COMMAND, std::string> Map_Command =
@@ -102,8 +118,79 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::DICE_SEVEN,	        "$CATAN$ DICE_SEVEN"},
 	{NET_COMMAND::BANDIT_GECS,	        "$CATAN$ BANDIT_GECS"},
 	{NET_COMMAND::ASK_CHANGE_BANK,	    "$CATAN$ ASK_CHANGE_BANK"},
+	{NET_COMMAND::PLAYER_CHANGE_AREA,	"$CATAN$ PLAYER_CHANGE_AREA"},
+	{NET_COMMAND::MAX_WAY_OWNER,	    "$CATAN$ MAX_WAY_OWNER"},
+	{NET_COMMAND::SEND_CARDS_TO_BANK,	"$CATAN$ SEND_CARDS_TO_BANK"},
+	{NET_COMMAND::INFO_CHANGE_BANK,	    "$CATAN$ INFO_CHANGE_BANK"},
+	{NET_COMMAND::TAKE_CARD_FROM_PLAYER,"$CATAN$ TAKE_CARD_FROM_PLAYER"},
+	{NET_COMMAND::ASK_BUY_IMPROVE_CARD, "$CATAN$ ASK_BUY_IMPROVE_CARD"},
+	{NET_COMMAND::INFO_IMP_CARDS,       "$CATAN$ INFO_IMP_CARDS"},       //банк карт развития
+	{NET_COMMAND::DEVELOP_VECTOR,       "$CATAN$ DEVELOP_VECTOR"},
+	{NET_COMMAND::LAST_DICE,            "$CATAN$ LAST_DICE"},
+	{NET_COMMAND::PLAY_DEVELOP_CARD,    "$CATAN$ PLAY_DEVELOP_CARD"},
+	{NET_COMMAND::PLAY_KNIGHT,          "$CATAN$ PLAY_KNIGHT"}
 };
 
+//=======================================================
+// Запрос сыграть карту развития
+//=======================================================
+void AskPlayDevelopCard(IMP_TYPE type)
+{
+	char msg[256];
+	std::cout << "  Ask to play card  " << (int)type  << std::endl;
+
+	//переслать на сервер 
+	strcpy_s(msg, Map_Command[NET_COMMAND::PLAY_DEVELOP_CARD].c_str());
+	itoa(player_num, &msg[50], 10);
+	itoa((int)type, &msg[54], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+	return;
+}
+
+//=======================================================
+// Запрос забрать карту у игрока PL
+//=======================================================
+void AskTakeRandomCardFromPlayer(int pl)
+{
+	char msg[256];
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::TAKE_CARD_FROM_PLAYER].c_str());
+	itoa(player_num, &msg[50], 10);
+	itoa(pl, &msg[54], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+}
+
+//=======================================================
+//  сообщение серверу об изменении в банке обмена
+//=======================================================
+void Info_Change_Bank()
+{
+	char msg[256];
+
+	//переслать на сервер свой обменный банк
+	strcpy_s(msg, Map_Command[NET_COMMAND::INFO_CHANGE_BANK].c_str());
+	itoa(player_num, &msg[50], 10);
+	memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
+	send(Connection, msg, sizeof(msg), NULL);
+}
+
+//=======================================================
+//  запрос на сброс карт в банк (обработка 7)
+//=======================================================
+void AskSendCardsToBank()
+{
+	char msg[256];
+
+	//проверить достаточно ли карт скидывается 
+
+	
+	//переслать на сервер коменду сбросить банк обмена в общий банк
+	strcpy_s(msg, Map_Command[NET_COMMAND::SEND_CARDS_TO_BANK].c_str());
+	itoa(player_num, &msg[50], 10);
+	send(Connection, msg, sizeof(msg), NULL);
+
+	return;
+}
 
 //=======================================================
 //  запрос обмена ресурсов с банком
@@ -112,17 +199,30 @@ bool AskChangeWithBank(RESURS CARD_type)
 {
 char msg[256];
 int i;
+int need_card;
 
-//проверить есть ли в банке обмена 4 одинаковые карточки
-for(i = 1;i < 10;i++)   { if (ChangeBANK[player_num][i] >= 4)  i = 20;  }
+
+//проверить есть ли в банке обмена нужное количество одинаковых карточек
+for(i = 1;i < 10;i++)   
+       {
+	   need_card = 4;
+	   if(bonus31(player_num))    need_card = 3;
+	   if(bonus21(player_num, i))   need_card = 2;
+	   if(ChangeBANK[player_num][i] >= need_card)  i = 20;
+       }
 if (i < 20){	std::cout << " В банке нехватает ресурсов для обмена " << std::endl;  return false;  }
 
-//общий банк карточек - посылаем, так как мог измениться до обмена
+//информируем банк о завершенных постройках в узлах
+//так как бонус по картам мог появиться в процессе хода
+Send_nodes();
+Send_roads();
+
+//общий банк карточек - посылаем, так как мог измениться до обмена при постройке
 strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
 memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
 send(Connection, msg, sizeof(msg), NULL);
 
-//ресурсы  игрока - посылаем так как могли измениться до обмена
+//ресурсы  игрока - посылаем так как могли измениться до обмена при постройке
 strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
 _itoa(player_num, &msg[50], 10);     //номер игрока
 memcpy(&msg[54], player[player_num].resurs, 10 * sizeof(int));   //карточки
@@ -132,6 +232,43 @@ send(Connection, msg, sizeof(msg), NULL);
 strcpy_s(msg, Map_Command[NET_COMMAND::ASK_CHANGE_BANK].c_str());
 itoa(player_num, &msg[50], 10);
 itoa((int)CARD_type, &msg[54], 10);
+memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
+send(Connection, msg, sizeof(msg), NULL);
+
+//в ответ сервер должен обновить банк ресурсов и ресурсы игрока
+
+return true;
+}
+
+//=======================================================
+//  запрос покупки карты развития
+//=======================================================
+bool AskBuyImproveCARD()
+{
+char msg[256];
+
+//проверитть наличие карточек для покупки
+//if no   return false;  
+
+//информируем банк о завершенных постройках в узлах
+//так как бонус по картам мог появиться в процессе хода
+Send_nodes();
+Send_roads();
+
+//общий банк карточек - посылаем, так как мог измениться до обмена при постройке
+strcpy_s(msg, Map_Command[NET_COMMAND::INFO_BANK_RESURS].c_str());
+memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
+send(Connection, msg, sizeof(msg), NULL);
+
+//ресурсы  игрока - посылаем так как могли измениться до обмена при постройке
+strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_RESURS].c_str());
+_itoa(player_num, &msg[50], 10);     //номер игрока
+memcpy(&msg[54], player[player_num].resurs, 10 * sizeof(int));   //карточки
+send(Connection, msg, sizeof(msg), NULL);
+
+//переслать на сервер свой обменный банк и требуемый от банка ресурс
+strcpy_s(msg, Map_Command[NET_COMMAND::ASK_BUY_IMPROVE_CARD].c_str());
+itoa(player_num, &msg[50], 10);
 memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
 send(Connection, msg, sizeof(msg), NULL);
 
@@ -187,7 +324,7 @@ void Send_roads()
 }
 
 //========================================================
-// посылает инфо по узлам
+// посылает инфо по узлам - о постройках
 //========================================================
 void Send_nodes()
 {
@@ -417,7 +554,6 @@ void ClientHandler(int index)
 	std::string str;
 	NET_COMMAND Command = NET_COMMAND::EMPTY;
 
-
 	while (true)            //бесконечный цикл в потоке обработки входных сообщений
 	{
 		ret = recv(Connection, msg, sizeof(msg), NULL);
@@ -430,8 +566,6 @@ void ClientHandler(int index)
 			return;
 		    }
 		if (ret == 0) { ret = 1; std::cout << " 0 byte recieved " << std::endl; }
-
-
 
 		if (Connection != 0)
 		    {
@@ -473,6 +607,12 @@ void ClientHandler(int index)
 				    {
 					//std::cout << "Получен номер шага игры " << atoi(&msg[50]) << std::endl;
 					Game_Step.current_step = atoi(&msg[50]);
+
+					//стираем надпись своего последнего броска
+					if (Game_Step.current_step == 4)
+					    {
+						for (int i = 1; i < 5; i++)   player[i].last_dice = 0;
+					    }
 					continue;
 				    }
 
@@ -481,6 +621,12 @@ void ClientHandler(int index)
 					if(Game_Step.current_step == 4)  Game_Step.step[4].roll_2_dice = 1;
 					Game_Step.current_active_player = atoi(&msg[50]);
 					InitChange_BANK();    //в начале хода банк обмена обнуляется
+					for (int ii = 1; ii < 5; ii++)   { player[ii].flag_allow_get_card = 0;  limit_7[ii] = 0; }
+
+					//стираем надпись своего последнего броска
+					if(player_num == Game_Step.current_active_player && Game_Step.current_step == 4)
+						          player[player_num].last_dice = 0;
+
 					continue;
 				}
 
@@ -519,6 +665,7 @@ void ClientHandler(int index)
 				if (Command == NET_COMMAND::INFO_BANK_RESURS)
 				    {
 					int* intPtr = (int*)&msg[50];
+					_itoa(improve_CARDS.size(), &msg[100], 10);
 					memcpy(CARD_Bank, &msg[50], 10 * sizeof(int));
 					continue;
 				    }
@@ -545,25 +692,99 @@ void ClientHandler(int index)
 					int pl = atoi(&msg[50]);
 					if(pl == player_num)
 					       {
-						   std::cout << " Выпало 7 , переместите разбойников " << std::endl;
+						   std::cout << " Вы бросили 7 на кубиках !!!! " << std::endl;
 						   Game_Step.step[4].flag_bandit = 1;
+						   //подсчитать сколько карт должно остаться у игроков чтобы продолжить игру
+						   for (int i = 1; i < 5; i++)
+						        {
+							    limit_7[i] = 0;
+							    if (i == player_num)   continue;
+							    if (getPlayerNumCardResurs(i) > 7)   limit_7[i] = getPlayerNumCardResurs(i) / 2 + getPlayerNumCardResurs(i) % 2;
+						        }
 					       }
-					else
-					   {
-						if ((CARD_Bank[(int)RESURS::WOOD] + CARD_Bank[(int)RESURS::BREAD] + CARD_Bank[(int)RESURS::STONE] + 
-							      CARD_Bank[(int)RESURS::BRICKS] + CARD_Bank[(int)RESURS::OVCA]) >= 8)
-						    {
-							std::cout << " Выпало 7 , надо сбросить половину ресурсов " << std::endl;
-						    }
-					   }
+					     else
+					       {
+						   if (getPlayerNumCardResurs(player_num) >= 8)
+						          {
+							      limit_7[player_num] = getPlayerNumCardResurs(player_num) / 2 + getPlayerNumCardResurs(player_num) % 2;
+							      std::cout << " Выпало 7, надо оставить "<< limit_7[player_num] << "карт ресурса" << std::endl;
+						          }
+					       }
 					continue;
 				    }
+
+				if (Command == NET_COMMAND::PLAY_KNIGHT)
+				{
+					int pl = atoi(&msg[50]);
+					if (pl == player_num)
+					    {
+					    std::cout << " Вы играете карту Рыцаря " << std::endl;
+						Game_Step.step[4].flag_bandit = 1;
+					    }
+
+					continue;
+				}
+
+				if (Command == NET_COMMAND::LAST_DICE)
+				{
+					int pl = atoi(&msg[50]);
+					player[pl].last_dice = atoi(&msg[54]);
+					continue;
+				}
 
 				if (Command == NET_COMMAND::BANDIT_GECS)
 				{
 					bandit_Gecs = atoi(&msg[50]);
 					continue;
 				}
+
+				if (Command == NET_COMMAND::MAX_WAY_OWNER)
+				{
+					max_road_owner = atoi(&msg[50]);
+					continue;
+				}
+
+				if (Command == NET_COMMAND::PLAYER_CHANGE_AREA)
+				   {
+					int pl = atoi(&msg[50]);                                 //номер игрока
+					memcpy(ChangeBANK[pl] ,&msg[54], 10 * sizeof(int));      //карточки
+					continue;
+				   }
+
+				if (Command == NET_COMMAND::INFO_IMP_CARDS)    //общий банк
+				{
+					int size = atoi(&msg[50]);
+					int* intPtr = (int*)&msg[54];
+					improve_CARDS.clear();
+					IMP_CARD tmp;
+					for (int i = 0; i < size; i++)
+					    {
+						tmp.status = *intPtr++;
+						tmp.type = (IMP_TYPE)(*intPtr++);
+						improve_CARDS.push_back(tmp);   //заполняем вектор 
+					    }
+					continue;
+				}
+
+				if (Command == NET_COMMAND::DEVELOP_VECTOR)  //вектор карт развития игрока
+				{
+					int size = atoi(&msg[50]);
+					int pl   = atoi(&msg[52]);
+					int* intPtr = (int*)&msg[54];
+
+					develop_CARDS[pl].clear();
+					IMP_CARD tmp;
+					for (int i = 0;i < size; i++)
+					    {
+						tmp.status = *intPtr++;
+						tmp.type = (IMP_TYPE)(*intPtr++);
+						develop_CARDS[pl].push_back(tmp);   //заполняем вектор 
+					    }
+
+					//std::cout << " Получены карты развития игрока "  <<  pl << std::endl;
+					continue;
+				}
+				
 				
 			     continue;
 			    }
@@ -825,6 +1046,8 @@ void ServerClientStreamFunc(int index)
 
 			if (Command == NET_COMMAND::ASK_NODE_ARRAY)
 			{
+			Send_To_All_Info_Nodes();
+			/*
 			int* intPtr;
 			int i=0,p;
 				//послать станциям массив узлов
@@ -846,6 +1069,7 @@ void ServerClientStreamFunc(int index)
 						intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
 					}
 				}
+				*/
 			continue;
 			}
 
@@ -887,10 +1111,27 @@ void ServerClientStreamFunc(int index)
 				if ( Game_Step.current_step == 4)
 				    {
 					Game_Step.current_active_player = GetNextPlayer();
+
+					//активировать игроку карточки рыцарей, если еще не активированы
+					for (auto& elem : develop_CARDS[Game_Step.current_active_player])
+					    {
+						if (elem.status == -1 && elem.type == IMP_TYPE::KNIGHT)  elem.status = 0;
+					    }
+					Send_To_All_Develop_CARDS(Game_Step.current_active_player);
+
 					std::cout << "SERVER  Передача хода игроку  " << Game_Step.current_active_player << std::endl;
 					strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_ACTIVE_PLAYER].c_str());	_itoa(Game_Step.current_active_player, &msg[50], 10);
 					Send_To_All(msg, sizeof(msg));
 					InitChange_BANK();
+					//переход самого динного тракта    max_road_owner
+					int way;
+					for(int i = 1;i < 5;i++)    
+					   {
+						way = Count_Road_Length(i);
+						if (way > Count_Road_Length(max_road_owner) && way >= 5)  max_road_owner = i;
+					   }
+					if(Count_Road_Length(max_road_owner) < 5) max_road_owner = 0;
+					Send_To_All_Info_Max_Way();
 					continue;
 				    }
 				if (Game_Step.current_step == 3)   Get_Resurs(player[pl].last_village_node,pl);    //распред ресурсы для деревни
@@ -939,6 +1180,12 @@ void ServerClientStreamFunc(int index)
 			strcat(msg, " roll  -   ");  _itoa(player[pl].first_roll, msg1, 10);   strcat(msg,msg1);
 			Send_To_All(msg, sizeof(msg));
 
+			//системное сообщение --------------------------------------
+			strcpy_s(msg, Map_Command[NET_COMMAND::LAST_DICE].c_str());
+			_itoa(pl, &msg[50], 10);
+			_itoa(player[pl].first_roll, &msg[54], 10);
+			Send_To_All(msg, sizeof(msg));
+
             //если не все бросили кубик передать ход след игроку, если все то след шаг игры
 			if (GetNextPlayer() == Game_Step.start_player)
 			{
@@ -969,21 +1216,26 @@ void ServerClientStreamFunc(int index)
 				int dice2 = rand() % 6 + 1  + rand() % 6 + 1;   //2 кубика
 
 				//сообщить всем результат броска кубика - не системное простое оповещение 
-				std::cout << " Бросок кубиков =  " <<  dice2  << std::endl;
-				strcpy(msg, "Player "); _itoa(pl, msg1, 10); strcat(msg, msg1);
-				strcat(msg, " roll  -   ");  _itoa(dice2, msg1, 10);   strcat(msg, msg1);
+				std::cout << " Результат броска  =  " <<  dice2  << std::endl;
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::LAST_DICE].c_str());	
+				_itoa(pl, &msg[50], 10);
+				_itoa(dice2, &msg[54], 10);
 				Send_To_All(msg, sizeof(msg));
 
 				if(dice2 == 7)
 				    {
+					Send_To_All_Info_Resurs();
 					strcpy_s(msg, Map_Command[NET_COMMAND::DICE_SEVEN].c_str());	_itoa(pl, &msg[50], 10);
 					Send_To_All(msg, sizeof(msg));
 					continue;
 				    }
-
-				//распределить ресурсы по результатам броска - цикл по узлам катана
-				Step_Resurs(dice2);
-				Send_To_All_Info_Resurs();
+				   else
+				       {
+					   //распределить ресурсы по результатам броска - цикл по узлам катана
+					   Step_Resurs(dice2);
+					   Send_To_All_Info_Resurs();
+				       }
 				continue;
 			}
 
@@ -1057,37 +1309,144 @@ void ServerClientStreamFunc(int index)
 
 			if (Command == NET_COMMAND::ASK_CHANGE_BANK)
 			{
-				InitChange_BANK();
+				//InitChange_BANK();    //не надо, банк и так передается от игрока
 				int pl = atoi(&msg[50]);
 				int type_put = atoi(&msg[54]);
 				memcpy(&ChangeBANK[pl][0],&msg[60], sizeof(int) * 10);
 
-				std::cout << " Запрос на get " << resurs_name[type_put] << " from pl " << pl  <<  std::endl;
+				//std::cout << " Запрос на обмен с банком " << resurs_name[type_put] << " from pl " << pl  <<  std::endl;
 
 				//найти 4 карточки одного типа, вычесть их из банка игрока
 				int type_get = 0;
+				int need_card;
 				for(int i = 1;i < 10;i++)
 				   {
-					if (ChangeBANK[pl][i] >= 4) { type_get = i; break; }
+					need_card = 4;
+					if (bonus31(pl)) need_card = 3;
+					if(bonus21(pl,i)) need_card = 2;
+					//проверить есть ли нужное кол-во в обменном банке и для контроля в банке игрока
+					if (ChangeBANK[pl][i] >= need_card && player[pl].resurs[i] >= need_card) { type_get = i; break; }        
 				   }
 
-				if (type_get == 0)
-				    {
-					std::cout << " не нашлось 4 карт "  << std::endl;
-					continue;     //карт для обмена не нашлось
-				    }
+				if (type_get == 0)	    {   std::cout << " не нашлось нужное кол-во карт "  << std::endl;	continue;      }
 				//проверить если запрашиваемый ресурс в общем банке
-				if (CARD_Bank[type_put] < 1)    continue;
+				if (CARD_Bank[type_put] < 1)  { std::cout << " В банке нет ресурса " << std::endl;	continue; }
 
 				//перенести карты в банках
-				player[pl].resurs[type_put] += 1;   CARD_Bank[type_put] -= 1;
-				player[pl].resurs[type_get] -= 4;   CARD_Bank[type_get] += 4;
+				player[pl].resurs[type_put] += 1;            ChangeBANK[pl][type_put] += 1;	           CARD_Bank[type_put] -= 1;
+				player[pl].resurs[type_get] -= need_card;    ChangeBANK[pl][type_get] -= need_card;  	CARD_Bank[type_get] += need_card;
 
+				//сообщить всем состояние банков карточек
+				Send_To_All_Info_Resurs();
+
+				//банки обмена игроков
+				//for (int i = 1; i < 5; i++)   Send_To_All_Info_Change_Area(i);   //пересылается в Send_To_All_Info_Resurs()
+				continue;
+			}
+
+			if (Command == NET_COMMAND::SEND_CARDS_TO_BANK)
+			   {
+				//принимаем обменный банк
+				int pl = atoi(&msg[50]);
+				int num;
+				for (int i = 1; i < 10; i++)
+				    {
+					num = ChangeBANK[pl][i];
+				    if (num != 0)    {   player[pl].resurs[i] -= num;     ChangeBANK[pl][i] -= num;	   CARD_Bank[i] += num;   }
+				    }
+
+				//сообщить всем состояние банков карточек - тк как общий банк и банк игрока тоже меняется
+				Send_To_All_Info_Resurs();
+				continue;
+			   }
+
+			if (Command == NET_COMMAND::INFO_CHANGE_BANK)
+			{
+			    //принимаем обменный банк игрока
+				int pl = atoi(&msg[50]);
+				int type_put = atoi(&msg[54]);
+				memcpy(&ChangeBANK[pl][0], &msg[60], sizeof(int) * 10);
+
+				//сообщить всем состояние банка
+				Send_To_All_Info_Change_Area(pl);
+			}
+
+			if (Command == NET_COMMAND::TAKE_CARD_FROM_PLAYER)
+			   {
+				int pl = atoi(&msg[50]);
+				int pl_donor = atoi(&msg[54]);
+
+				std::cout << " Take card command "  << std::endl;
+				int type = TakeRandomCardFromPl(pl_donor);
+				if (type) { player[pl].resurs[type] += 1;  ChangeBANK[pl][type] += 1;   player[pl_donor].resurs[type] -= 1;  }
+				std::cout << " Pl " << pl << " забирает карту у  " << pl_donor << "type " << resurs_name[type] <<  std::endl;
+
+				//сообщить всем состояние банков карточек - тк как общий банк и банк игрока тоже меняется
+				Send_To_All_Info_Resurs();
+				continue;
+			   }
+
+			if (Command == NET_COMMAND::ASK_BUY_IMPROVE_CARD)
+			{
+				int pl = atoi(&msg[50]);
+				memcpy(&ChangeBANK[pl][0], &msg[60], sizeof(int) * 10);
+
+				//проверить достаточность карт
+				if (ChangeBANK[pl][(int)RESURS::STONE] == 0) { std::cout << " не нашлось нужное кол-во карт " << std::endl;	continue; }
+				if (ChangeBANK[pl][(int)RESURS::OVCA] == 0) { std::cout << " не нашлось нужное кол-во карт " << std::endl;	continue; }
+				if (ChangeBANK[pl][(int)RESURS::BREAD] == 0) { std::cout << " не нашлось нужное кол-во карт " << std::endl;	continue; }
+
+				//забрать карты у игрока и перенести в банк
+				ChangeBANK[pl][(int)RESURS::STONE] -= 1; player[pl].resurs[(int)RESURS::STONE] -= 1;  CARD_Bank[(int)RESURS::STONE] += 1;
+				ChangeBANK[pl][(int)RESURS::OVCA] -= 1;  player[pl].resurs[(int)RESURS::OVCA] -= 1;   CARD_Bank[(int)RESURS::OVCA] += 1;
+				ChangeBANK[pl][(int)RESURS::BREAD] -= 1; player[pl].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
+
+				//получить последний тип карты развития из вектора
+				auto type = improve_CARDS.at(0).type;
+				auto status = improve_CARDS.at(0).status;
+				//вытащить первую карту развития из вектора
+				improve_CARDS.erase(improve_CARDS.begin());
+
+				//поместить карту в вектор игрока и обновить данные карт развития игрока всем
+				IMP_CARD ttt = {status, type};
+				develop_CARDS[pl].push_back(ttt);
+				Send_To_All_Develop_CARDS(pl);
+
+				std::cout << " Карта развития " << (int)type << " size befor "<< improve_CARDS.size()  << std::endl;
+
+				//сообщить всем состояние банков карточек ресурсов
 				Send_To_All_Info_Resurs();
 
 				continue;
 			}
 
+			if (Command == NET_COMMAND::PLAY_DEVELOP_CARD)
+			{
+				int pl = atoi(&msg[50]);
+				int type = atoi(&msg[54]);
+
+				std::cout << " Server Play DCARD  " << type << std::endl;
+
+				//в векторе карт развития игрока первую активную найденную карту перевести в статус 1
+				for(auto& elem : develop_CARDS[pl])
+				    {
+					if (elem.status == 0 && type == (int)elem.type) {	elem.status = 1;  break;  }
+				    }
+
+				//обработать вид карты - карту 1 очко обрабатывать не надо
+				if (type == (int)IMP_TYPE::KNIGHT)
+				    {
+					strcpy_s(msg, Map_Command[NET_COMMAND::PLAY_KNIGHT].c_str());
+					_itoa(pl, &msg[50], 10);
+					Send_To_All(msg, sizeof(msg));
+				   }
+
+				//разослать вектор карт развития игрока
+				Send_To_All_Develop_CARDS(pl);
+
+				continue;
+			}
+			
 		continue;
 		}  //закончена обработка , если в команде нет CONTINUE, то она будет дублирована всем
 
@@ -1140,6 +1499,9 @@ void Send_To_All_Info_Resurs()
  memcpy(&msg[50], &CARD_Bank[0], 10 * sizeof(int));
  Send_To_All(msg,sizeof(msg));
 
+ //общий банк карт развития
+ Send_To_All_Improve_CARDS();
+
  //ресурсы каждого игрока
  for (int i = 1; i < 5; i++)
     {
@@ -1149,7 +1511,108 @@ void Send_To_All_Info_Resurs()
 	 Send_To_All(msg, sizeof(msg));
     }
 
+ //банки обмена игроков
+ for (int i = 1; i < 5; i++)   Send_To_All_Info_Change_Area(i);
+
  return;
+}
+
+//=======================================================================
+//отправка сообщения о состоянии банка обмена игрока
+//=======================================================================
+void Send_To_All_Info_Change_Area(int pl)
+{
+	char msg[256];
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_CHANGE_AREA].c_str());
+	_itoa(pl, &msg[50], 10);                                 //номер игрока
+	memcpy(&msg[54], ChangeBANK[pl], 10 * sizeof(int));   //карточки
+	Send_To_All(msg, sizeof(msg));
+}
+
+//=======================================================================
+//отправка сообщения о карточке самого длинного пути
+//=======================================================================
+void Send_To_All_Info_Max_Way()
+{
+char msg[256];
+	strcpy_s(msg, Map_Command[NET_COMMAND::MAX_WAY_OWNER].c_str());
+	_itoa(max_road_owner, &msg[50], 10);
+	Send_To_All(msg, sizeof(msg));
+}
+
+//=======================================================================
+//отправка сообщения о ресурсах от сервера всем игрокам
+// проверить на превышение размера сообщения 
+//=======================================================================
+void Send_To_All_Info_Nodes()
+{
+	char msg[256];
+
+	int* intPtr;
+	int i = 0, p;
+	//послать станциям массив узлов c разбиением на пакеты
+	strcpy_s(msg, Map_Command[NET_COMMAND::NODE_ARRAY].c_str());   //копируем сначала, так как после может испортить данные в 50 ячейке
+	intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = 0;  //в 1 ячейке номер стартового узла
+	intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
+	for (int p = 0; p < nodePtr->size(); p++)
+	{
+		*intPtr++ = nodePtr->at(p).owner;
+		*intPtr++ = nodePtr->at(p).object;
+		i++;
+		if (i == 20 || p == nodePtr->size() - 1)                //как пакет достигает 20 узлов - отправляем 
+		{
+			intPtr = (int*)&msg[50];	*intPtr = i;                                 //в 50 ячейке количество узлов           
+			Send_To_All(msg, sizeof(msg));
+			i = 0;
+			intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = p + 1;   //в 1 ячейке номер стартового узла
+			intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
+		}
+	}
+	return;
+}
+
+//=======================================================================
+//отправка банка карт развития 
+//=======================================================================
+void Send_To_All_Improve_CARDS()
+{
+	char msg[256];
+	int* intPtr;
+
+	intPtr = (int*)&msg[54];
+	strcpy_s(msg, Map_Command[NET_COMMAND::INFO_IMP_CARDS].c_str());
+	for (auto& elem : improve_CARDS)
+	{
+		*intPtr++ = elem.status;
+		*intPtr++ = (int)elem.type;
+	}
+	_itoa(improve_CARDS.size(), &msg[50], 10);     //размер вектора
+
+	Send_To_All(msg, sizeof(msg));
+	return;
+}
+
+//=======================================================================
+//отправка вектора карт развития 1 игрока от сервера клиенту
+//=======================================================================
+void Send_To_All_Develop_CARDS(int pl)
+{
+	char msg[256];
+	int* intPtr;
+	
+	intPtr = (int*)&msg[54];
+	strcpy_s(msg, Map_Command[NET_COMMAND::DEVELOP_VECTOR].c_str());
+	for(auto& elem : develop_CARDS[pl])
+	    {
+		*intPtr++ = elem.status;
+		*intPtr++ = (int)elem.type;
+	    }
+	_itoa(develop_CARDS[pl].size(), &msg[50], 10);     //размер вектора
+	_itoa(pl, &msg[52], 10);     //номер игрока
+
+	Send_To_All(msg, sizeof(msg));
+	return;
 }
 
 //============================================================================
