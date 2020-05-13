@@ -169,9 +169,9 @@ int Count_Road_Length(int pl)
 			//контроль ошибок в функции подсчета длины дороги
 			if (WAYS.size() > 120)    { 	std::cout << " WAY.size() > 120  " << std::endl;	return 0;   }
 			if (WAYS_TMP.size() > 30)   {	std::cout << " WAYS_TMP.size() > 30  " << std::endl;  return 0;    }
-			if (road.size() > 15)
+			if (road.size() > 16)
 			   { 
-				std::cout << " road.size() > 15  " << " and TMP.size() =  " << WAYS_TMP.size() << std::endl;
+				std::cout << " road.size() > 16  " << " and TMP.size() =  " << WAYS_TMP.size() << std::endl;
 				for (auto node : road) std::cout << " | " << node;
 				std::cout << " | " << std::endl;
 

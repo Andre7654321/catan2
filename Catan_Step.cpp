@@ -34,7 +34,7 @@ extern PLAYER player[5];
 
 
 //===============================================================
-//  по результатам брока кубика назначаем первого ходящего
+//  по результатам броска кубика назначаем первого ходящего
 //===============================================================
 int SetFirstPlayer()
 {
@@ -66,11 +66,11 @@ int GetPrevPlayer()
 	prev_player = Game_Step.current_active_player - 1;
 
 	int i = 0;
-	while (i++ < 6)  //цикл пока не найдем активного игрока или не попадем на первого ходящего
+	while (i++ < 6)  //цикл пока не найдем активного игрока 
 	{
 		if (prev_player < 1)  prev_player = 4;
 		if (player[prev_player].active == true)   return prev_player;
-		else prev_player--;
+		  else prev_player--;
 	}
 
 	return 0;

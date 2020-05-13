@@ -17,8 +17,13 @@ extern int limit_7[5];
 extern int player_num;
 extern int max_road_owner;
 
+extern int Play_two_roads;     //флаг игры карты развития 2 дороги
+extern int Play_two_resurs;
+extern int Play_ONE_resurs;
+
 //область обмена ресурсами
 extern int ChangeBANK[5][10];
+extern CHANGE Change[12];
 
 extern GAME_STEP Game_Step;
 
@@ -112,17 +117,19 @@ void Draw_Step_Info(sf::RenderWindow* win)
      sf::Text text_step("", font, 20);   //для информации о текущем шаге игры
      text_step.setFillColor(sf::Color::White);
 
-    if (Game_Step.current_step == 0)    strcpy_s(str, "Waiting for GAME Start");
-    if (Game_Step.current_step == 1)    strcpy_s(str, "Roll the dice -   step 1");
-    if (Game_Step.current_step == 2)    strcpy_s(str, "Set 1 Village and 1 road near -  step 2");
-    if (Game_Step.current_step == 3)    strcpy_s(str, "Set 1 Village(+take RESORCE) and 1 road near - step 3");
-    if (Game_Step.current_step == 4)    strcpy_s(str, "  ---------- Standart step ---------");
+     if (Game_Step.current_step < 4)
+         {
+         if (Game_Step.current_step == 0)    strcpy_s(str, "Waiting for GAME Start");
+         if (Game_Step.current_step == 1)    strcpy_s(str, "Roll the dice -   step 1");
+         if (Game_Step.current_step == 2)    strcpy_s(str, "Set 1 Village and 1 road near -  step 2");
+         if (Game_Step.current_step == 3)    strcpy_s(str, "Set 1 Village(+take RESORCE) and 1 road near - step 3");
 
-    strcat_s(str, ",  player ");
-    _itoa_s(Game_Step.current_active_player, str1, 10);  strcat_s(str1, "  move ");   strcat_s(str, str1);
-
-    text_step.setString(str);
-    text_step.setPosition(450, 20);      win->draw(text_step);
+         strcat_s(str, ",  player ");
+         _itoa_s(Game_Step.current_active_player, str1, 10);  strcat_s(str1, "  move ");   strcat_s(str, str1);
+         text_step.setString(str);
+         text_step.setPosition(450, 20);
+         win->draw(text_step);
+         }
 
     if (player_num == Game_Step.current_active_player && Game_Step.current_step >= 1)
         {
@@ -132,7 +139,7 @@ void Draw_Step_Info(sf::RenderWindow* win)
         if (isCardsDeletedAfterSeven() == false) { strcpy_s(str, "Wait for cut cards "); text_step.setFillColor(sf::Color::Color(250, 125, 120)); }
         text_step.setCharacterSize(50);  
         text_step.setString(str);
-        text_step.setPosition(500, 41);      win->draw(text_step);
+        text_step.setPosition(540, 41);      win->draw(text_step);
         }
 
     if (player_num != Game_Step.current_active_player && limit_7[player_num] < getPlayerNumCardResurs(player_num) &&  limit_7[player_num] > 0)
@@ -142,9 +149,31 @@ void Draw_Step_Info(sf::RenderWindow* win)
         text_step.setString(str);
         text_step.setPosition(500, 41);      win->draw(text_step);
     }
-         
-    
 
+    if(Play_two_roads > 0)
+        {
+        strcpy_s(str, "You may set 2 roads");      text_step.setFillColor(sf::Color::Color(120, 255, 120));
+        text_step.setCharacterSize(50);
+        text_step.setString(str);
+        text_step.setPosition(480, 2);      win->draw(text_step);
+        }
+
+    if (Play_two_resurs > 0)
+        {
+        strcpy_s(str, "You may get 2 cards");      text_step.setFillColor(sf::Color::Color(120, 255, 120));
+        text_step.setCharacterSize(50);
+        text_step.setString(str);
+        text_step.setPosition(480, 2);      win->draw(text_step);
+        }
+
+    if (Play_ONE_resurs > 0)
+    {
+        strcpy_s(str, "Choos RESURS Type");      text_step.setFillColor(sf::Color::Color(120, 255, 120));
+        text_step.setCharacterSize(50);
+        text_step.setString(str);
+        text_step.setPosition(490, 2);      win->draw(text_step);
+    }
+         
     if (player_num != 0) return;
 
     strcpy_s(str, "First Player = ");  _itoa_s(Game_Step.start_player, str1, 10);  strcat_s(str,str1);
@@ -259,6 +288,8 @@ void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale, int 
 sf::Sprite sprite_chBank;
 sf::Sprite sprite_chBank_clear;
 sf::Sprite sprite_take_card[5];
+sf::Sprite sprite_change[5];
+sf::Texture texture_change;
 sf::Texture texture_chBank_set;
 sf::Texture texture_chBank_clear;
 sf::Texture texture_take_card;
@@ -278,9 +309,10 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
     texture_chBank_set.loadFromFile("img/ch_bank_grey.png");
     texture_chBank_clear.loadFromFile("img/Crest_red.png");
     texture_take_card.loadFromFile("img/Town_green.png");
+    texture_change.loadFromFile("img/change.png");
     }
  sprite_chBank.setTexture(texture_chBank_set);  
- sprite_chBank.setScale(0.8,0.8);
+ sprite_chBank.setScale(0.75,0.70);
  sprite_chBank.setPosition(x, y); 
  win->draw(sprite_chBank); 
  
@@ -292,6 +324,22 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
      sprite_chBank_clear.setPosition(x + 200, y + 7);
      win->draw(sprite_chBank_clear);
      }
+
+ //спрайт разрешения обмена
+ //выводится после того как брошен кубик до строительства ходящего или конца хода
+ if ((player_num == Game_Step.current_active_player || pl == Game_Step.current_active_player)
+          && player[player_num].flag_allow_change == 1 && 
+         numCardChange(pl) > 0 && numCardChange(player_num) > 0 && pl != player_num)
+       {
+         sprite_change[pl].setTexture(texture_change);
+         sprite_change[pl].setScale(0.3, 0.3);
+         sprite_change[pl].setPosition(x + 205, y + 55);
+         win->draw(sprite_change[pl]);  
+       }
+      else sprite_change[pl].setPosition(1000,1000);
+
+ if(pl != player_num) Draw_Change_Offers(win, pl, y);
+       else Draw_Change_Offers_ForActive(win);
 
  //кнопка разрешения забрать карту
  if (pl != player_num && player[pl].flag_allow_get_card == 1)
@@ -334,16 +382,81 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
     if (i == (int)RESURS::FISH3) continue;
     if (i == (int)RESURS::PIRATE) continue;
 
-    DrawCard(win,i, x + i * 35, y + 35, 0.3);
+    DrawCard(win,i, x + i * 35, y + 33, 0.3);
 
     //количество
     _itoa_s(ChangeBANK[pl][i], str, 10);
-    text2.setPosition(x + i * 35 + 10, y + 85);
+    text2.setPosition(x + i * 35 + 10, y + 82);
     text2.setString(str);
     win->draw(text2);
     }
 
  return;
+}
+
+sf::Sprite sprite_Offer[12];
+//=====================================================================
+//   предложения по обмену
+//=====================================================================
+void Draw_Change_Offers(sf::RenderWindow* win,int pl,int pl_y)
+{
+    int num = 0;
+
+    //более 2 предложений у не активного игрока не может быть
+    for (int s = 0; s < 12; s++)
+        {
+        if (Change[s].status == 0) continue;
+        if (Change[s].to_pl != pl) continue;
+
+        //область аналогичная банку обмена - заменить потом на свою
+        sprite_Offer[s].setTexture(texture_chBank_set);
+        sprite_Offer[s].setScale(0.6, 0.35);
+        sprite_Offer[s].setPosition(310, pl_y + num*60);   //у активного игрока другие координаты
+        win->draw(sprite_Offer[s]);
+        int pos = 0,pos1 = 0;
+        for (int t = 1; t < 6; t++)
+            {
+            if(Change[s].need_num[t] > 0)   DrawCard(win, t, 330 + (pos++) * 20, pl_y + 13 + num * 60,0.19);
+            if (Change[s].offer_num[t] > 0)  DrawCard(win, t, 450 - (pos1++) * 20, pl_y + 13 + num * 60, 0.19);
+            }
+
+        num++;
+       }
+
+    return;
+}
+
+//=====================================================================
+//   предложения по обмену игроку делающему ход
+//=====================================================================
+void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
+{
+    int num = 0;
+    int s_x = 350;
+    int s_y = 700;
+
+    //более 2 предложений у не активного игрока не может быть
+    for (int s = 0; s < 12; s++)
+    {
+        if (Change[s].status == 0) continue;
+        if (Change[s].to_pl != player_num) continue;
+
+        //область аналогичная банку обмена - заменить потом на свою
+        sprite_Offer[s].setTexture(texture_chBank_set);
+        sprite_Offer[s].setScale(0.8, 0.35);
+        sprite_Offer[s].setPosition(s_x, s_y + num * 60);
+        win->draw(sprite_Offer[s]);
+        int pos = 0, pos1 = 0;
+        for (int t = 1; t < 6; t++)
+            {
+            if (Change[s].need_num[t] > 0)   DrawCard(win, t, s_x + 30 + (pos++) * 20, s_y + 13 - num * 60, 0.19);
+            if (Change[s].offer_num[t] > 0)  DrawCard(win, t, s_x + 150 - (pos1++) * 20, s_y + 13 - num * 60, 0.19);
+            }
+
+        num++;
+    }
+
+    return;
 }
 
 //=====================================================================
@@ -805,6 +918,7 @@ sf::Text text2("", font, 16);
 text2.setFillColor(sf::Color::White);
 
 // верхний ряд - активные карточки
+// нижний ряд  - сыгранные карточки
     
     //активные рыцари
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT,0);
@@ -863,6 +977,30 @@ text2.setFillColor(sf::Color::White);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
 
+    // 2 дороги - сыгранные
+    num = getNumDevelopCARD(IMP_TYPE::ROAD2, 1);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 95, 0.35, 0);
+        text2.setPosition(develop_field_x + 114, develop_field_y + 150);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+    }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::RESURS1, 1);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 95, 0.35, 0);
+        text2.setPosition(develop_field_x + 164, develop_field_y + 150);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+    }
+
+    //
+    num = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, 1);
+    if (num) {
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 95, 0.35, 0);
+        text2.setPosition(develop_field_x + 214, develop_field_y +150);
+        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+    }
+    
     num = getNumDevelopCARD(IMP_TYPE::POINT1, 1);
     if (num) {
         DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 95, 0.35, 0);

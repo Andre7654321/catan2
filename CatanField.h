@@ -9,11 +9,12 @@ bool isVillageNear(int);
 bool isRoadNear(int, int);
 void Get_Resurs(int, int);
 void Step_Resurs(int);
-int CountScore(int );
-int getPlayerNumCardResurs(int);
+int  CountScore(int );
+int  getPlayerNumCardResurs(int);
 bool isCardsDeletedAfterSeven();
 bool isAnyAlienObjectNearGecs(int,int);
-int TakeRandomCardFromPl(int);
+int  TakeRandomCardFromPl(int);
+int  numCardChange(int);
 
 //---------------------------------------------------------------------------------
 //перечисление карт развития
@@ -26,6 +27,7 @@ enum class IMP_TYPE
 	POINT1,
 };
 
+//карта развития
 class IMP_CARD
 {
 public:
@@ -51,6 +53,16 @@ enum class RESURS
 #define VILLAGE 1
 #define TOWN    2
 
+//структура сделки на обмен ресурсами
+struct CHANGE
+{
+ int status = 0;
+ int from_pl;
+ int to_pl;
+ int offer_num[6];
+ int need_num[6];
+};
+
 //структура банка ресурсов - где хранятся карточки ресурсов
 //будет использована в общем банке игры и банки игроков
 struct bank
@@ -71,6 +83,7 @@ public:
 	int first_roll = 0;
 	int last_village_node = -1;
 	int flag_allow_get_card = 0;
+	int flag_allow_change = 0;
 	int last_dice = 0;
 	PLAYER();
 };   //============================= PLAYER   end =============================================

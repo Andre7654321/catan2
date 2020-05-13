@@ -20,7 +20,9 @@ void DrawVillage(sf::RenderWindow*, int, int, int, float);
 void DrawTown(sf::RenderWindow* , int, int, int, float);
 
 void DrawResursBank(sf::RenderWindow*);
-void DrawChangeBank(sf::RenderWindow* win,int,int,int);
+void DrawChangeBank(sf::RenderWindow* ,int,int,int);
+void Draw_Change_Offers(sf::RenderWindow* ,int,int);
+void Draw_Change_Offers_ForActive(sf::RenderWindow*);
 void DrawPlayer(sf::RenderWindow*);
 void Draw_Step_Info(sf::RenderWindow*);
 

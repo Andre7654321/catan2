@@ -92,6 +92,22 @@ PLAYER::PLAYER()
 
 
 //===========================================================================
+// возвращает количество карт в банке обмена
+//===========================================================================	
+int numCardChange(int pl)
+{
+  int num = 0;
+    
+  num += ChangeBANK[pl][(int)RESURS::WOOD];
+  num += ChangeBANK[pl][(int)RESURS::STONE];
+  num += ChangeBANK[pl][(int)RESURS::OVCA];
+  num += ChangeBANK[pl][(int)RESURS::BRICKS];
+  num += ChangeBANK[pl][(int)RESURS::BREAD];
+
+   return num;
+}
+
+//===========================================================================
 // возвращает тип забираемого ресурса
 //===========================================================================	
 int TakeRandomCardFromPl(int pl_donor)
