@@ -6,9 +6,6 @@
 #include <mutex>
 #include <string>
 #include <map>
-//#include <system>
-
-//#include <string.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -37,8 +34,7 @@ extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 SOCKET Connection;   //подключение клиента
 #define MY_PORT 2489
 char addr_listen[20] = "192.168.2.39";
-//char addr_listen[20] = "127.0.0.1";
-char addr_connect[20] = "192.168.2.39";  //"127.0.0.1"
+char addr_connect[20] = "192.168.2.39"; 
 //char addr_connect[20] = "127.0.0.1";
 
 
@@ -106,7 +102,9 @@ ASK_GET_RESURS_FROM_ALL,
 SET_CHANGE_OFFER,
 CHANGE_OFFER,
 ASK_DELETE_OFFER,
-ASK_ACCEPT_OFFER
+ASK_ACCEPT_OFFER,
+ASK_RESET_GAME,
+TEST_GAME
 };
 
 std::map<NET_COMMAND, std::string> Map_Command =
@@ -151,8 +149,107 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::SET_CHANGE_OFFER,    "zCATANz SET_CHANGE_OFFER"},
 	{NET_COMMAND::CHANGE_OFFER,        "zCATANz CHANGE_OFFER"},
 	{NET_COMMAND::ASK_DELETE_OFFER,    "zCATANz ASK_DELETE_OFFER"},
-	{NET_COMMAND::ASK_ACCEPT_OFFER,    "zCATANz ASK_ACCEPT_OFFER"}
+	{NET_COMMAND::ASK_ACCEPT_OFFER,    "zCATANz ASK_ACCEPT_OFFER"},
+	{NET_COMMAND::ASK_RESET_GAME,      "zCATANz ASK_RESET_GAME"},
+	{NET_COMMAND::TEST_GAME,           "zCATANz TEST_GAME"}
 };
+
+//=======================================================
+// запрос серверу перезапустить игру
+//=======================================================
+void Test_Game()
+{
+	char msg[256];
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::TEST_GAME].c_str());
+	send(Connection, msg, sizeof(msg), NULL);
+	return;
+}
+
+//=======================================================
+// запрос серверу перезапустить игру
+//=======================================================
+void Ask_Reset_Game()
+{
+	char msg[256];
+
+	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_RESET_GAME].c_str());
+	send(Connection, msg, sizeof(msg), NULL);
+	return;
+}
+
+//=======================================================
+// Функция потока UDP Server 
+//=======================================================
+void Check_UDP()
+{
+	SOCKET SendRecvSocket;  // сокет для приема и передачи
+	sockaddr_in ServerAddr, ClientAddr;  // это будет адрес сервера и клиентов
+	int err, maxlen = 512, ClientAddrSize = sizeof(ClientAddr);  // код ошибки, размер буферов и размер структуры адреса
+	char* recvbuf = new char[maxlen];  // буфер приема
+	char* result_string = new char[maxlen];  // буфер отправки
+
+	Sleep(300);
+	std::cout << " ========== CREATE UDP BLOCK =========== " << std::endl;
+	//std::cout << " === SERVER ADDR == " << addr_listen << std::endl;
+											 
+	// Create a SOCKET for connecting to server
+	SendRecvSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// Setup the TCP listening socket
+	ServerAddr.sin_family = AF_INET;
+	ServerAddr.sin_addr.s_addr = inet_addr(addr_listen);      
+	ServerAddr.sin_port = htons(12345);
+	err = bind(SendRecvSocket, (sockaddr*)&ServerAddr, sizeof(ServerAddr));
+	if (err == SOCKET_ERROR) 
+	    {
+		printf("UDP socket bind failed: %d\n", WSAGetLastError());
+		closesocket(SendRecvSocket);
+		//WSACleanup();
+		return;
+	    }
+	else  printf("UDP socket bind OK\n");
+
+	while (true) 
+	   {
+		// Accept a client socket
+		err = recvfrom(SendRecvSocket, recvbuf, maxlen, 0, (sockaddr*)&ClientAddr, &ClientAddrSize);
+		if (err > 0) 
+		    {
+			recvbuf[err] = 0;
+			printf("Received query: %s\n", (char*)recvbuf);
+
+
+			//после получения сообщения --------------------------------------------------------------
+			// вычисляем результат
+			int result = 72;           //заполняем значение от фонаря
+
+			//snprintf_s(	char* buffer, size_t sizeOfBuffer, size_t count, const char* format[,argument] ...
+			//  buffer	Место хранения выходных данных.
+			//  sizeOfBuffer	Размер места хранения выходных данных.Размер в байтах
+			//  count			Максимальное число символов для хранения
+			//format			Строка управления форматом.
+			// возвращает количество символов, хранящихся в буфере, без учета завершающего нуль символа.
+
+			//формируем строку ответа
+			//_snprintf_s(result_string, maxlen, maxlen, "OK %d\n", result);
+
+			strcpy(result_string, addr_listen);   //записываем в возвращаемую строку адрес сервера в локальной сети                    //
+
+			// отправляем результат 
+			sendto(SendRecvSocket, result_string, strlen(result_string), 0, (sockaddr*)&ClientAddr, sizeof(ClientAddr));
+			printf("UDP Sent answer: %s\n", result_string);
+		    }
+		   else {
+			    printf("UDP recv failed: %d\n", WSAGetLastError());
+			    closesocket(SendRecvSocket);
+			    //WSACleanup();
+			    return;
+		        }
+
+	    }  //while
+
+}
 
 //=======================================================
 // Запрос на выполнение обмена по заявке
@@ -429,7 +526,7 @@ void InitChange_BANK(int i)
 }
 
 //========================================================
-// клиент посылает инфо по дорогам
+// клиент посылает инфо по дорогам на сервер
 //========================================================
 void Send_roads()
 {
@@ -562,7 +659,8 @@ void Say_Move_Over()
 	//Info_Main_Bank();  Sleep(5);
 
 	//ресурсы  игрока
-	Info_Player_Resurs();
+	Info_Player_Resurs();   //поменялось при строительстве
+	Info_Main_Bank();       //поменялось при строительстве
 
 	//деревни, города .. игрока
 	strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_OBJECTS].c_str());
@@ -735,8 +833,16 @@ void ClientHandler(int index)
 				    {
 					//std::cout << "Получен номер шага игры " << atoi(&msg[50]) << std::endl;
 					Game_Step.current_step = atoi(&msg[50]);
+
+					int st = Game_Step.current_step;
+					//восстанавливаем флаги 2 3 шагов - для варианта перезагрузки игры
+					if (st == 2 || st == 3)
+					    { 
+						Game_Step.step[st].flag_set_one_Village = 1;
+						Game_Step.step[st].flag_set_one_Road = 1;
+					    }
 					//стираем надпись своего последнего броска
-					if (Game_Step.current_step == 4)
+					if (st == 4)
 					    {
 						for (int i = 1; i < 5; i++)   player[i].last_dice = 0;
 					    }
@@ -968,16 +1074,18 @@ void ClientHandler(int index)
 
 //===============================================================================================
 // инициализация сервера игры 
-//===============================================================================================
+//===============================================================================================       START SERVER
 int Start_Server_CATAN()
 {
 	init_WSA();
 
-	//Создаем отдельный поток, где обрабатываются подключения игроков
+	//Создаем отдельный поток, где обрабатываются подключения игроков по TCP
 	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)Check_Connections, NULL, NULL, NULL);
 
-	//std::thread t_server(Check_Connections);
-	//t_server.join();
+	
+	//создаем отдельный поток для  UDP сервера, где принимаем широковещательный запрос от клиента
+	//и сообщаем ему адрес сервера
+	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)Check_UDP, NULL, NULL, NULL);
 
 	Sleep(50);
 	return 1;
@@ -985,15 +1093,64 @@ int Start_Server_CATAN()
 
 //===============================================================================================
 // инициализация клиента игры 
-//===============================================================================================
+//===============================================================================================       START CLIENT
 int Init_Client_CATAN(void)
 {
 	init_WSA();
 	std::cout << "\n\n ========== PLAYER PART WINSOCK CATAN START ============ " << std::endl;
 
+	//============================ UDP CLIENT =====================================
+	//создаем широковещательный UDP запрос для получения адреса сервера
+	SOCKET SendRecvSocket;  // сокет для приема и передачи
+	sockaddr_in ServerAddr;  // это будет адрес сервера
+	int err, maxlen = 512;  // код ошибки, размер буферов и размер структуры адреса
+	char* recvbuf = new char[maxlen];  // буфер приема
+	char* query = new char[maxlen];  // буфер отправки
+
+	// Create a SOCKET for connecting to server
+	//SendRecvSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	SendRecvSocket = socket(AF_INET, SOCK_DGRAM, 0);
+
+	char broadcast = '1';     //глубина посылки нет вроде ??
+	if (setsockopt(SendRecvSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0)
+	     {
+		  std::cout << "Error in setting Broadcast option \n";
+		  closesocket(SendRecvSocket);
+	     }
+
+	ServerAddr.sin_family = AF_INET;
+	ServerAddr.sin_addr.s_addr = inet_addr("192.168.2.255");   //WIDE ADDRESS FOR LOCAL DOMAIN
+	ServerAddr.sin_port = htons(12345);
+
+	//нахрена исп такой мудреный путь запонения буфера отправки
+	_snprintf_s(query, maxlen, maxlen, "WIDE UDP Ask: SERVER CATAN address\n");
+
+	// отправляем запрос на сервер
+	sendto(SendRecvSocket, query, strlen(query), 0, (sockaddr*)&ServerAddr, sizeof(ServerAddr));
+	printf("Sent: %s\n", query);
+
+	// получаем результат - висим пока не ответит нам адресом сервера
+	err = recvfrom(SendRecvSocket, recvbuf, maxlen, 0, 0, 0);
+	if (err > 0) 
+	    {
+		recvbuf[err] = 0;                         //нуль терминатор в конце прочитанного массива
+		//printf("Client UDP Result: %s\n", (char*)recvbuf);
+	   }
+	  else  printf("Client UDP recv failed: %d\n", WSAGetLastError());
+
+	closesocket(SendRecvSocket);
+
+	strcpy(addr_connect,recvbuf);     //адрес для подключения к серверу нашей игры
+	//============================ UDP CLIENT END ==================================
+	
+	
+	mtx1.lock();
+	std::cout << "============= CLIENT PART CATAN GAME ===================  " << std::endl;
+	std::cout << "Try to connect addr =  " << addr_connect << std::endl;
+	mtx1.unlock();
+
 	SOCKADDR_IN addr;
 	int sizeofaddr = sizeof(addr);
-	//addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	addr.sin_addr.s_addr = inet_addr(addr_connect);    //------------------------------------------------------------------      ADDR
 	addr.sin_port = htons(MY_PORT);
 	addr.sin_family = AF_INET;      //интернет протокол
@@ -1062,18 +1219,6 @@ void Check_Connections(void)
 	addr.sin_addr.s_addr = inet_addr(addr_listen);
 	std::cout << "Listen Address =   " << addr_listen << std::endl;
 
-	//сканировать локальную сеть на подключенные адреса -----------------------------------------
-	//using System;
-	//using System.Net;
-	/*
-	if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
-	    {
-		System.
-		std::cout << "Net Error   "  << std::endl;
-	    }
-		*/
-	//-------------------------------------------------------------------------------------------
-
 	//слушающий сокет
 	SOCKET sListen = socket(AF_INET, SOCK_STREAM, NULL);   //create sockrt
 	bind(sListen, (SOCKADDR*)&addr, sizeof(addr));         // привязываем адрес к сокету
@@ -1084,13 +1229,20 @@ void Check_Connections(void)
 	
 	std::cout << "\n ======  SERVER: Старт цикла ожидания подключений ====== \n  " << std::endl;
 
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < 10; i++)
 	{
 		std::cout << " SERVER: Wait for next player \n  " << std::endl;
 		newConnection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr);     //не возвращает управление пока не дождется запроса на подключение
 		if (newConnection == 0)  {	std::cout << "ERROR newConnection" << std::endl;  }
 		else
-		{
+		 {
+		  if (Connections[0] == 0 && Connections[1] == 0 && Connections[2] == 0 && Connections[3] == 0)
+			    {
+				std::cout << "============== First player =============== " << std::endl;
+				Counter = 0;  //сбрасываем счетчик подключений
+				i = 0;        //сбрасываем начало чикла подключений
+			    }
+
 			mtx1.lock();
 			std::cout << "SERVER:  OK Player  N= " << (Counter+1) << "   Connected" << std::endl;
 			mtx1.unlock();
@@ -1188,7 +1340,7 @@ void ServerClientStreamFunc(int index)
 		    {
 			ret = recv(Connections[index], &msg[pack_size], sizeof(msg) - pack_size, NULL);
 			if (ret == SOCKET_ERROR)
-			   {	std::cout << " SOCKET_ERROR " << std::endl;	 closesocket(Connections[index]);  Connections[index] = 0; 	return;   }
+			   {	std::cout << "* SOCKET_ERROR " << std::endl;	 closesocket(Connections[index]);  Connections[index] = 0; 	return;   }
 			pack_size += ret;
 		    }
 
@@ -1232,7 +1384,7 @@ void ServerClientStreamFunc(int index)
 				continue;
 			}
 
-			if (Command == NET_COMMAND::ROAD_ARRAY)
+			if (Command == NET_COMMAND::ROAD_ARRAY)   //дороги приходят не всем массивом а пакетами по несколько шт
 			    {
 				int* intPtr = (int*)&msg[50];
 				int road_num = *intPtr;  intPtr++;
@@ -1467,7 +1619,7 @@ void ServerClientStreamFunc(int index)
 				_itoa(player[pl].town, &msg[60], 10);                    //города
 				_itoa(player[pl].village, &msg[70], 10);                 //деревни
 				_itoa(player[pl].road, &msg[80], 10);                    //дороги
-				send(Connections[pl - 1], msg, sizeof(msg), NULL); Sleep(1);
+				send(Connections[pl - 1], msg, sizeof(msg), NULL); 
 				continue;
 			}
 
@@ -1722,7 +1874,87 @@ void ServerClientStreamFunc(int index)
 				Send_To_All_Info_Change(s);
 				continue;
 			}
+
+			if (Command == NET_COMMAND::ASK_RESET_GAME)
+			   {
+				std::cout << "  RESET COMMAND   " << std::endl;
+
+				Game_Step.current_active_player = 1;
+				Game_Step.current_step = 0;
+				Game_Step.start_player = 1;
+
+				roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
+				//останутся ли верными указатели на вектора ??
+				Init_CATAN_Field(gecsPtr, nodePtr, roadPtr);
+
+				Send_To_All_Info_Nodes();
+				Send_To_All_Info_Resurs();
+				Send_To_All_Info_Roads();
+
+				//Send_To_All_Info_();     //Фишки городов .....  
+
+				//передача сформированного поля - гексы и номера - остальное клиент сформирует
+				int gecs_num = 0;
+				for (auto& elem : *gecsPtr)
+				    {
+					strcpy_s(msg, Map_Command[NET_COMMAND::SET_GECS].c_str());
+					//надо записать в строку данные гекса
+					_itoa(gecs_num++, &msg[50], 10);       //на 50 позиции номер гекса
+					_itoa((int)elem.type, &msg[60], 10);   //на 60 позиции тип гекса
+					_itoa((int)elem.gecs_game_number, &msg[70], 10);   //на 70 позиции присвоенная игровая цифра
+					Send_To_All(msg, sizeof(msg));
+				    }
+
+				//сообщить о месте расположения разбойников
+				strcpy_s(msg, Map_Command[NET_COMMAND::BANDIT_GECS].c_str());
+				_itoa(bandit_Gecs, &msg[50], 10);
+				Send_To_All(msg, sizeof(msg));
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());
+				_itoa(Game_Step.current_step, &msg[50], 9);
+				Send_To_All(msg, sizeof(msg));
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_ACTIVE_PLAYER].c_str());
+				_itoa(Game_Step.current_active_player, &msg[50], 10);
+				Send_To_All(msg, sizeof(msg));
+
+				//число городов, деревень, дорог игрока
+				for (int pl = 1; pl < 5; pl++)
+				    {
+					develop_CARDS[pl].clear();
+					Send_To_All_Develop_CARDS(pl);
+
+					if (player[pl].active == 0) continue;
+					strcpy_s(msg, Map_Command[NET_COMMAND::PLAYER_OBJECTS].c_str());
+					_itoa(pl, &msg[50], 10);                                 //номер игрока
+					_itoa(player[pl].town, &msg[60], 10);                    //города
+					_itoa(player[pl].village, &msg[70], 10);                 //деревни
+					_itoa(player[pl].road, &msg[80], 10);                    //дороги
+					send(Connections[pl - 1], msg, sizeof(msg), NULL);
+				    }
+
+				Send_To_All_Info_Resurs();
+				continue;
+			   }
 			
+			if (Command == NET_COMMAND::TEST_GAME)
+			    {
+				Game_Step.current_step = 4;
+				player[1].resurs[1] = 40;  player[1].resurs[2] = 40;  player[1].resurs[3] = 40; player[1].resurs[5] = 40;
+				player[2].resurs[1] = 40;  player[2].resurs[2] = 40;  player[2].resurs[3] = 40; player[2].resurs[5] = 40;
+				nodePtr->at(5).owner = 1; nodePtr->at(5).object = TOWN;
+				nodePtr->at(25).owner = 1; nodePtr->at(25).object = TOWN;
+				nodePtr->at(9).owner = 2; nodePtr->at(9).object = TOWN;
+				nodePtr->at(45).owner = 2; nodePtr->at(45).object = TOWN;
+				Send_To_All_Info_Nodes();
+				Send_To_All_Info_Resurs();
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::SET_STEP].c_str());
+				_itoa(Game_Step.current_step, &msg[50], 9);
+				Send_To_All(msg, sizeof(msg));
+				continue;
+			    }
+
 		continue;
 		}  //закончена обработка , если в команде нет CONTINUE, то она будет дублирована всем
 
@@ -1736,7 +1968,7 @@ void ServerClientStreamFunc(int index)
 			//рассылка получателям
 			if (send(Connections[i], msg, sizeof(msg), NULL) == INVALID_SOCKET)
 			{
-				std::cout << "  ERROR SEND  " << std::endl;   //вероятно процедуру сбоя связи надо менять для возможности восстановления подключения к серверу
+				std::cout << "**  ERROR SEND  " << std::endl;   //вероятно процедуру сбоя связи надо менять для возможности восстановления подключения к серверу
 				closesocket(Connections[i]);	Connections[i] = 0;
 			}
 
@@ -1855,6 +2087,37 @@ void Send_To_All_Info_Nodes()
 			intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
 		}
 	}
+	return;
+}
+
+//========================================================
+// клиент посылает инфо по дорогам клиентам
+//========================================================
+void Send_To_All_Info_Roads()
+{
+	char msg[256];
+	int* intPtr;
+	int i = 0;
+
+	//цикл по дорогам
+	strcpy_s(msg, Map_Command[NET_COMMAND::ROAD_ARRAY].c_str());   //копируем сначала, так как после может испортить данные в 50 ячейке
+	intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = 0;  //в 1 ячейке номер стартового узла
+	intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
+	for (size_t p = 0; p < roadPtr->size(); p++)
+	{
+		*intPtr++ = roadPtr->at(p).owner;
+		*intPtr++ = roadPtr->at(p).type;
+		i++;
+		if (i == 20 || p == roadPtr->size() - 1)                //как пакет достигает 20 узлов - отправляем 
+		{
+			intPtr = (int*)&msg[50];	*intPtr = i;            //в 50 ячейке количество дорог           
+			Send_To_All(msg, sizeof(msg));
+			i = 0;
+			intPtr = (int*)&msg[50];  	intPtr++;	*intPtr = p + 1;   //в 1 ячейке номер стартового узла
+			intPtr = (int*)&msg[50];    intPtr += 2;              //встаем на 2 элемент массива   0, 1, 2
+		}
+	}
+
 	return;
 }
 

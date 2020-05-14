@@ -87,82 +87,32 @@ int main()
 {
    setlocale(LC_ALL, "rus");
 
-
-   //std::cout << "=================== TEST  Sizeof(NODE) = " << sizeof(NODE)  << std::endl;
-
-   CARD_Bank[(int)RESURS::WOOD] = 40; CARD_Bank[(int)RESURS::STONE] = 40; CARD_Bank[(int)RESURS::OVCA] = 40;
-   CARD_Bank[(int)RESURS::BREAD] = 40; CARD_Bank[(int)RESURS::BRICKS] = 40;
-
    //инициализация поля игры, гексов, дорог до запуска сетевых процедур
    std::vector<GECS> Gecs;
    std::vector<NODE> Field;
    std::vector<ROAD> Roads;
 
-   gecsPtr = &Gecs;
-   nodePtr = &Field;
-   roadPtr = &Roads;
-
-   //тестовое задание карт развития
-   /*
-   improve_CARDS[0] = { 0, IMP_TYPE::KNIGHT };
-   improve_CARDS[1] = { 0, IMP_TYPE::ROAD2 };
-   improve_CARDS[2] = { 0, IMP_TYPE::RESURS_CARD2 };
-   improve_CARDS[3] = { 0, IMP_TYPE::POINT1 };
-   improve_CARDS[4] = { 0, IMP_TYPE::RESURS1 };
-   improve_CARDS[5] = { 0, IMP_TYPE::KNIGHT };
-   */
-
-   IMP_CARD ttt = { -1, IMP_TYPE::KNIGHT };
-   improve_CARDS.insert(improve_CARDS.begin(),ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-
-   IMP_CARD ttt1 = { 0, IMP_TYPE::ROAD2 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-
-   IMP_CARD ttt2 = { 0, IMP_TYPE::POINT1 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
-
-   IMP_CARD ttt3 = { 0, IMP_TYPE::RESURS_CARD2 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-
-   IMP_CARD ttt4 = { 0, IMP_TYPE::RESURS1 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
-  
-
+   gecsPtr = &Gecs;   nodePtr = &Field;   roadPtr = &Roads;
    Init_CATAN_Field(&Gecs, &Field, &Roads);
    //--------------------------------------------------------------------
 
-   Game_Step.current_step        = 0;           //начало игры
-   Game_Step.start_player        = 1;
+   Game_Step.current_step          = 0;           //начало игры
+   Game_Step.start_player          = 1;
    Game_Step.current_active_player = 1;           //бросок кубика за игроком №0
 
     char connectionType;
     std::cout << "Enter (s) for server, Enter (c) for client" << std::endl;
     std::cin >> connectionType;
     
-    //запуск сервера приложения
+    //запуск сервера приложения ========================================================================
     if (connectionType == 's')      { std::cin.clear();  Start_Server_CATAN();   player_num = 0;   }
     else
        {
         std::cin.clear();
-        //запускаем свою клиентскую часть если не сервер - вектора данных уже сформированы,
         //так как при подключении сервер нам передаст расположение гексов, а дороги и узлы не должны меняться
         int ret = Init_Client_CATAN();
         if (ret == 0) { std::cout << "  No connect , exit" << std::endl;     return 0; }
        }
-
 
     //SMFL --------------------------------------------------------------------------------------
     sf::RenderWindow window(sf::VideoMode(1200, 960), "CATAN standart FIELD", sf::Style::Close);
@@ -171,15 +121,6 @@ int main()
     //толстая дорога, рисуется прямоугольником, требует поворота фигуры если идет под углом
     sf::RectangleShape Road(sf::Vector2f(60.f, 7.f));   //параметры  ширина и высота
     Road.setOrigin(0, 4);  //смещаем центр разворота в середину толщины линии
-
-    //-----------------------------  бонусы узлов  -------------------------------------------
-    Field.at(1).type  = 0;    Field.at(6).type = 0;  Field.at(10).type = 0;    Field.at(11).type = 0;  // 3:1
-    Field.at(52).type = 0;    Field.at(53).type = 0;  Field.at(27).type = 0;    Field.at(28).type = 0; // 3:1
-    Field.at(37).type = 1;    Field.at(45).type = 1;   //wood
-    Field.at(22).type = 2;    Field.at(23).type = 2;   //bricks
-    Field.at(47).type = 3;    Field.at(51).type = 3;   //bread
-    Field.at(39).type = 4;    Field.at(40).type = 4;   //stone
-    Field.at(4).type  = 5;    Field.at(17).type = 5;   //ovca
 
     int st;  //номер текущего шага
     //main cycle ===============================================================================================
@@ -199,9 +140,33 @@ int main()
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))  { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
+            // заявки на обмен с игроком - проверка только своих заявок
+            bool del;
+            for (int s = 0; s < 12; s++)
+                {
+                if (Change[s].status == 0)            continue;
+                 //если игрок предлагает то, чего уже нет
+                if (Change[s].from_pl == player_num)
+                    {
+                    del = false;
+                    for (int i = 1; i < 6; i++)     {    if (Change[s].offer_num[i] > player[player_num].resurs[i])  del = true;  }
+                    if (del == false) continue;
+                    AskToDeleteOffer(s);
+                    }
+                //если с вас просят то, чего уже нет
+                if (Change[s].to_pl == player_num)
+                    {
+                    del = false;
+                    for (int i = 1; i < 6; i++) { if (Change[s].need_num[i] > player[player_num].resurs[i])  del = true; }
+                    if (del == false) continue;
+                    AskToDeleteOffer(s);
+                    }
+                }
+
+
             //отслеживает факт нажатия R - тест подсчета длины дороги только для сервера
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::R && player_num == 0)
-                {      Count_Road_Length(1);      }
+                {   Count_Road_LengthTest(1);       }
 
             if (isCardsDeletedAfterSeven() == false)   continue;    //ожидание сброса карт игроками после 7
             if (player_num == 0)   continue;                        //блокировка для сервера
@@ -213,18 +178,33 @@ int main()
                 if (st == 4)  AskSendCardsToBank();
                 continue;
                 }
-                                                                    
+            
+            //тестовый переход на 4 шаг для отладки
+            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::F10 && player_num == Game_Step.current_active_player)
+            {
+               //обавляет ресурсов, ставит 1 и 2 игроку 2 города, позволяет нырнуть сразу на 4 шаг
+                Test_Game();
+            }
+
+            //перезапуск игры - уход на 0 уровень
+            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::F1 && player_num == Game_Step.current_active_player)
+                   {
+                   Ask_Reset_Game();
+                   }
+            
             //отслеживает факт нажатия SPACE - завершение хода
             if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
                   {
                      player[player_num].flag_allow_change = 0;   //запрет обменов
-                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0) { Say_Move_Over();  Sleep(10); }
+                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0) 
+                              { Say_Move_Over();  Game_Step.current_active_player = 0;  }
                      if (st == 3 || st == 2)
-                     {
-                         if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0) { Say_Move_Over();  Sleep(5); }
-                     }
-                     if (st == 1)  Say_Roll_1Dice(); 
-                     if (st == 0)  Say_Start(); 
+                         {
+                         if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
+                                   { Say_Move_Over();  Game_Step.current_active_player = 0;  }
+                         }
+                     if (st == 1)  {   Say_Roll_1Dice();   Game_Step.current_active_player = 0;  }
+                     if (st == 0)  Say_Start();
                   }
 
             //переход по ESC
@@ -707,7 +687,7 @@ int main()
 
             Draw_Step_Info(&window);
 
-            if (player_num == 1 && Count_Num_players() >= 2   &&    st == 0)  Draw_Start(&window);
+            if (player_num == 1 && Count_Num_players() >= 2   &&  st == 0)  Draw_Start(&window);
 
             if (player_num == Game_Step.current_active_player && st == 1)   Draw_Cubic(&window);
 
@@ -715,7 +695,7 @@ int main()
                  if (Game_Step.step[st].roll_2_dice == 1)    Draw_Cubic(&window);
 
             //если правая клавиша мышки выбрала карту развития
-            if(Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 3.0f, 0);
+            if(Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 1.6f, 0);
             
             window.display();
           //------------------------- конец отрисовки ------------------------

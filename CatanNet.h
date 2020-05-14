@@ -7,6 +7,8 @@
 
 #include <winsock2.h>
 
+void Ask_Reset_Game();
+void Test_Game();
 int Start_Server_CATAN(void);
 int Init_Client_CATAN(void);
 int  init_WSA(void);
@@ -45,6 +47,7 @@ void Send_To_All(char* , int);
 void Send_To_All_Info_Resurs();
 void Send_To_All_Player_CARDS(int);
 void Send_To_All_Info_Nodes();
+void Send_To_All_Info_Roads();
 void Send_To_All_Info_Change_Area(int);  //банк обмена
 void Send_To_All_Info_Max_Way();
 void Send_To_All_Develop_CARDS(int);

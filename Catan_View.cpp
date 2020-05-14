@@ -401,6 +401,10 @@ sf::Sprite sprite_Offer[12];
 void Draw_Change_Offers(sf::RenderWindow* win,int pl,int pl_y)
 {
     int num = 0;
+    char str[10];
+
+    sf::Text text2("", font, 14);
+    text2.setFillColor(sf::Color::White);
 
     //более 2 предложений у не активного игрока не может быть
     for (int s = 0; s < 12; s++)
@@ -415,9 +419,23 @@ void Draw_Change_Offers(sf::RenderWindow* win,int pl,int pl_y)
         win->draw(sprite_Offer[s]);
         int pos = 0,pos1 = 0;
         for (int t = 1; t < 6; t++)
-            {
-            if(Change[s].need_num[t] > 0)   DrawCard(win, t, 330 + (pos++) * 20, pl_y + 13 + num * 60,0.19);
-            if (Change[s].offer_num[t] > 0)  DrawCard(win, t, 450 - (pos1++) * 20, pl_y + 13 + num * 60, 0.19);
+        {
+            if (Change[s].need_num[t] > 0)
+                 {
+                 DrawCard(win, t, 330 + (pos) * 20, pl_y + 13 + num * 60, 0.19);
+                 _itoa_s(Change[s].need_num[t], str, 10);
+                 text2.setPosition(330 + (pos++) * 20, pl_y + 5 + num * 60);
+                 text2.setString(str);
+                 win->draw(text2);
+                 }
+            if (Change[s].offer_num[t] > 0)
+                {
+                DrawCard(win, t, 450 - (pos1) * 20, pl_y + 13 + num * 60, 0.19);
+                _itoa_s(Change[s].offer_num[t], str, 10);
+                text2.setPosition(450 - (pos1++) * 20, pl_y + 5 + num * 60);
+                text2.setString(str);
+                win->draw(text2);
+                }
             }
 
         num++;
@@ -432,8 +450,12 @@ void Draw_Change_Offers(sf::RenderWindow* win,int pl,int pl_y)
 void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
 {
     int num = 0;
-    int s_x = 350;
+    int s_x = 380;
     int s_y = 700;
+    char str[10];
+
+    sf::Text text2("", font, 14);
+    text2.setFillColor(sf::Color::White);
 
     //более 2 предложений у не активного игрока не может быть
     for (int s = 0; s < 12; s++)
@@ -444,15 +466,29 @@ void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
         //область аналогичная банку обмена - заменить потом на свою
         sprite_Offer[s].setTexture(texture_chBank_set);
         sprite_Offer[s].setScale(0.8, 0.35);
-        sprite_Offer[s].setPosition(s_x, s_y + num * 60);
+        sprite_Offer[s].setPosition(s_x, s_y - num * 60);
         win->draw(sprite_Offer[s]);
         int pos = 0, pos1 = 0;
         for (int t = 1; t < 6; t++)
             {
-            if (Change[s].need_num[t] > 0)   DrawCard(win, t, s_x + 30 + (pos++) * 20, s_y + 13 - num * 60, 0.19);
-            if (Change[s].offer_num[t] > 0)  DrawCard(win, t, s_x + 150 - (pos1++) * 20, s_y + 13 - num * 60, 0.19);
-            }
+            if (Change[s].need_num[t] > 0)
+                {
+                DrawCard(win, t, s_x + 30 + (pos) * 20, s_y + 13 - num * 60, 0.19);
+                _itoa_s(Change[s].need_num[t], str, 10);
+                text2.setPosition(s_x + 30 + (pos++) * 20, s_y + 5 - num * 60);
+                text2.setString(str);  
+                win->draw(text2);
+                }
 
+            if (Change[s].offer_num[t] > 0)
+                {
+                DrawCard(win, t, s_x + 150 - (pos1) * 20, s_y + 13 - num * 60, 0.19);
+                _itoa_s(Change[s].offer_num[t], str, 10);
+                text2.setPosition(s_x + 150 - (pos1++) * 20, s_y + 5 - num * 60);
+                text2.setString(str);
+                win->draw(text2);
+                }
+            }
         num++;
     }
 
@@ -573,7 +609,7 @@ void DrawPlayer(sf::RenderWindow* win)
             //общий банк карт развития 
             for (int i = 0; i < 10 && i < improve_CARDS.size(); i++)
                  {
-                 DrawDevelopCard(win, (int)improve_CARDS.at(i).type, f_x + 350 + i * 50, f_y + 10, 0.45, 0);
+                 DrawDevelopCard(win, (int)improve_CARDS.at(i).type, f_x + 350 + i * 50, f_y + 10, 0.22, 0);
                  }
             }
 
@@ -906,7 +942,7 @@ int getNumDevelopCARD(IMP_TYPE type, int  status)
 
 int develop_field_x = 730;
 int develop_field_y = 780;
-//================================================================
+//=================================================================
 //  область карточек развития
 //=================================================================
 void Draw_Develop_Cards_Field(sf::RenderWindow* win)
@@ -923,7 +959,7 @@ text2.setFillColor(sf::Color::White);
     //активные рыцари
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 10, 0.48,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 64, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
        }
@@ -931,7 +967,7 @@ text2.setFillColor(sf::Color::White);
     // 2 дороги
     num = getNumDevelopCARD(IMP_TYPE::ROAD2,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 10, 0.48,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 114, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -939,7 +975,7 @@ text2.setFillColor(sf::Color::White);
     //
     num = getNumDevelopCARD(IMP_TYPE::RESURS1,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 10, 0.48,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 164, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -947,7 +983,7 @@ text2.setFillColor(sf::Color::White);
     //
     num = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 10, 0.48,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 214, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -955,7 +991,7 @@ text2.setFillColor(sf::Color::White);
     //
     num = getNumDevelopCARD(IMP_TYPE::POINT1,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 10, 0.48,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 264, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -964,7 +1000,7 @@ text2.setFillColor(sf::Color::White);
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT,-1);
     if (num) {
         //0 в конце - прорисовать с локальным спрайтом - не уктивный рыцарь не может быть выбран мышкой
-        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 300, develop_field_y + 10, 0.30,0);  
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 300, develop_field_y + 10, 0.15,0);  
         text2.setPosition(develop_field_x + 314, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -972,7 +1008,7 @@ text2.setFillColor(sf::Color::White);
     //------------- нижний ряд - сыгранные карты не выбираются мышкой --------------------------------------
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 95, 0.35, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 64, develop_field_y + 150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
@@ -980,7 +1016,7 @@ text2.setFillColor(sf::Color::White);
     // 2 дороги - сыгранные
     num = getNumDevelopCARD(IMP_TYPE::ROAD2, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 95, 0.35, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 114, develop_field_y + 150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
@@ -988,7 +1024,7 @@ text2.setFillColor(sf::Color::White);
     //
     num = getNumDevelopCARD(IMP_TYPE::RESURS1, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 95, 0.35, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 164, develop_field_y + 150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
@@ -996,14 +1032,14 @@ text2.setFillColor(sf::Color::White);
     //
     num = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 95, 0.35, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 214, develop_field_y +150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
     
     num = getNumDevelopCARD(IMP_TYPE::POINT1, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 95, 0.35, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 264, develop_field_y + 150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }

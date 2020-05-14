@@ -17,6 +17,7 @@ extern int player_num;
 extern int CARD_Bank[10];
 extern int ChangeBANK[5][10];
 extern std::vector<IMP_CARD> develop_CARDS[5]; //карты развития игроков
+extern std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
 
 extern int bandit_Gecs;
 extern int max_road_owner;
@@ -426,6 +427,7 @@ bool isVillageNear(int index)
 //==================================================================================================
 int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std::vector<ROAD>* PtrRoad)
 {
+
 //инициализация сетки расположения гексов ---------------------------------------------------------
     for (int ii = 0; ii < 15; ii++)
     {
@@ -504,14 +506,58 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
           } //foreach in
     }  //foreach out
 
-    //распечатка дорог
-    /*
-    std::cout << "\n =============== Вектор дорог ================ " << std::endl;
-    i = 0;
-    for (auto& rr : *PtrRoad)
+   for (int i = 1; i < 5; i++)
     {
-        std::cout << i++ << "\tROAD from = " << rr.getRoad_start() << "\t|  to = " << rr.getRoad_end() << std::endl;
-    }*/
+        for (int ii = 0; ii < 10; ii++)   player[i].resurs[ii] = 0;
+        player[i].road = 15;
+        player[i].town = 4;
+        player[i].village = 5;
+        player[i].last_dice = 0;
+        develop_CARDS[i].clear();
+    }
+
+   //-----------------------------  бонусы узлов  -------------------------------------------
+   PtrNode->at(1).type = 0;     PtrNode->at(6).type = 0;   PtrNode->at(10).type = 0;    PtrNode->at(11).type = 0;  // 3:1
+   PtrNode->at(52).type = 0;    PtrNode->at(53).type = 0;  PtrNode->at(27).type = 0;    PtrNode->at(28).type = 0; // 3:1
+   PtrNode->at(37).type = 1;    PtrNode->at(45).type = 1;   //wood
+   PtrNode->at(22).type = 2;    PtrNode->at(23).type = 2;   //bricks
+   PtrNode->at(47).type = 3;    PtrNode->at(51).type = 3;   //bread
+   PtrNode->at(39).type = 4;    PtrNode->at(40).type = 4;   //stone
+   PtrNode->at(4).type = 5;     PtrNode->at(17).type = 5;   //ovca
+
+   //переделать на рандомное заполнение карт развития
+   improve_CARDS.clear();
+   IMP_CARD ttt = { -1, IMP_TYPE::KNIGHT };
+   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+
+   IMP_CARD ttt1 = { 0, IMP_TYPE::ROAD2 };
+   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
+
+   IMP_CARD ttt2 = { 0, IMP_TYPE::POINT1 };
+   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
+
+   IMP_CARD ttt3 = { 0, IMP_TYPE::RESURS_CARD2 };
+   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
+
+   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
+
+   IMP_CARD ttt4 = { 0, IMP_TYPE::RESURS1 };
+   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
+   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
+   //-------------------------------------------------------------------------------
+
+   CARD_Bank[(int)RESURS::WOOD] = 19; CARD_Bank[(int)RESURS::STONE] = 19; CARD_Bank[(int)RESURS::OVCA] = 19;
+   CARD_Bank[(int)RESURS::BREAD] = 19; CARD_Bank[(int)RESURS::BRICKS] = 19;
 
     return 1;
 }

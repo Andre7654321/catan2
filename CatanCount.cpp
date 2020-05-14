@@ -17,7 +17,7 @@ extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 
-//extern PLAYER player[5];
+extern int player_num;
 
 
 //===========================================================================
@@ -50,27 +50,21 @@ bool bonus21(int  player,int type)
 //возможен вариант, когда к узлу примыкает 2 своих дороги, а узел чужой,
 // тогда узел может быть началом 2 дорог !!!!
 //================================================================
-void isRoad_Start_Node(int node,int player, int* first, int* second)
+void isRoad_Start_Node(int node,int player, int* first, int* second, int* third)
 {
  int num_roads = 0;
 
    for (auto& r : *roadPtr)
     {
 	 //если дорога своя и примыкает к узлу
-	 if(r.owner == player  && (r.Node_num_start == node || r.Node_num_end == node))
+	 if(r.owner == player  &&  (r.Node_num_start == node || r.Node_num_end == node))
 	       {
-		   //std::cout << "**** Node " << node << " road start  " << r.Node_num_start << " end =  " << r.Node_num_end << std::endl;
-		   //если узел свой или пустой и наберется 2 дороги, то это не стартовый узел
-		    if (nodePtr->at(node).owner == player || nodePtr->at(node).owner == -1)
-		         {
-				 num_roads++;
-				 /*
-			     if (num_roads > 1 && (nodePtr->at(node).owner == -1 || nodePtr->at(node).owner == player))
-			          {  *first = -1;   *second = -1;   return;      }  */
-		         }
+		   //if(player_num == 0)  
+			//   std::cout << " Node " << node << "  start = " << r.Node_num_start << " end =  " << r.Node_num_end << " owner =  " << r.owner  <<std::endl;
 
 		    if (*first == -1) { node == r.Node_num_start ? *first = r.Node_num_end : *first = r.Node_num_start; }
-			      else { node == r.Node_num_start ? *second = r.Node_num_end : *second = r.Node_num_start; }
+			      else if(*second == -1) { node == r.Node_num_start ? *second = r.Node_num_end : *second = r.Node_num_start; }
+				        else { node == r.Node_num_start ? *third = r.Node_num_end : *third = r.Node_num_start; }
 	       }
 
     }  //for
@@ -120,22 +114,26 @@ bool isFinishWay(std::vector<int> road,int  player, int* first, int* second)
 	return true;
 }
 
+std::vector<std::vector<int>>  WAYS;
 //=============================================================
 //   вычисление длины дороги игрока
 //   pl = номер игрока
 //=============================================================
 int Count_Road_Length(int pl)
 {
+	bool flag = false;
+
 	std::vector<int> road;
-	std::vector<std::vector<int>>  WAYS;
+	//std::vector<std::vector<int>>  WAYS;
 	std::vector<std::vector<int>>  WAYS_TMP;
 	const size_t road_size = 15;
-	int first_way, second_way;
+	int first_way, second_way, third_way;
 
 	int max_way = 0;
 	int stack = 0;       //кол-во недосчитанных ответвлений дорог
 
 	if (pl < 1)  return 0;
+	WAYS.clear();
 
 	//цикл по узлам катана
 	for (int node = 0; node < nodePtr->size(); node++)
@@ -144,23 +142,30 @@ int Count_Road_Length(int pl)
 	WAYS_TMP.clear();  //чистый стек незавершенных ответвлений
 
 	    //если из узла стартует дорога, а МОЖЕТ СТАРТОВАТЬ ДО 2 ШТУК если узел чужой !!!!!!
-	    second_way = -1;  first_way = -1;
-	    isRoad_Start_Node(node, pl, &first_way, &second_way);
+	    second_way = -1;  first_way = -1;  third_way = -1;
+	    isRoad_Start_Node(node, pl, &first_way, &second_way, &third_way);
 		if (first_way == -1)    continue;  // нет начала дорог в этом узле
 
 		//создаем первый путь 
-		road.push_back(node);        //первым элементом ушел стартовый узел
-		road.push_back(first_way);
+		road.push_back(node);    road.push_back(first_way);    //первым элементом ушел стартовый узел
 		WAYS_TMP.push_back(road);    //загоняем дорогу в вектор незавершенных дорог
 		road.clear();
 
 		if(second_way != -1)        //если есть 2-я дорога, то ее тоже загоняем в незавершенные
 		   {
-			road.push_back(node);   
-			road.push_back(second_way);
+			road.push_back(node);	road.push_back(second_way);    //старт узел и 2 путь
 			WAYS_TMP.push_back(road);   
 			road.clear();
 		   }
+
+		if (third_way != -1)       
+		    {
+			road.push_back(node);	road.push_back(third_way);     //старт узел и 3 путь
+			WAYS_TMP.push_back(road);
+			road.clear();
+		    }
+
+		//std::cout << " Node= " << node << "\t1 = " << first_way << "\t2 =  " << second_way << "\t3 =  " << third_way << std::endl;
 
 		//-------------------------------------------------------------------------------------------
 		//пока дорога не закончится и стек ответвлений не очистится
@@ -193,6 +198,7 @@ int Count_Road_Length(int pl)
 		 //значит дорога замкнулась на себя и ее надо завершить
 		if (road.size() > 6)
 		    {
+			flag = false;
 			auto last = (road.at(road.size() - 1));
 			for (int i = 0; i < road.size() - 1; i++)
 			   {	
@@ -200,11 +206,11 @@ int Count_Road_Length(int pl)
 				        {
 					    if (max_way < road.size() - 1)   max_way = road.size() - 1;
 					    //WAYS.push_back(road); 
-						last = 20;  
+						flag = true;
 						break;       //дорога закончилась петлей в себя
 				        }
 			   }
-			if (last == 20) continue;   //брейком вывалились из FOR и далее вывадиваемся на начало WHILE
+			if (flag == true) continue;   //брейком вывалились из FOR и далее вывадиваемся на начало WHILE
 		    }
 			
 		//std::cout << " road.size() =  " << road.size() << " TMP.size() =  " << WAYS_TMP.size() << std::endl;
@@ -225,22 +231,34 @@ int Count_Road_Length(int pl)
 		}  //while
 
 	}  //for
-
-	//----------------------------------------------------------------------------------
-	//  печать векторов дорог для контроля
-	//----------------------------------------------------------------------------------
-	/*
-	std::cout << " == Найденные дороги  ==    max_way = " <<  max_way << std::endl;
-	for (auto rrr : WAYS)
-	   {
-	   for (auto node : rrr)
-	      {
-		   std::cout << " | " << node;
-	      }
-	   std::cout << " | " << std::endl;
-	   }
-	   */
+	   
 	return max_way;
 }
 
 //============================================================
+
+
+//=============================================================
+//   вычисление длины дороги игрока  TEST !!!
+//   pl = номер игрока
+//=============================================================
+int Count_Road_LengthTest(int pl)
+{
+	int max_way = Count_Road_Length(pl);
+
+	//----------------------------------------------------------------------------------
+	//  печать векторов дорог для контроля
+	//----------------------------------------------------------------------------------
+	std::cout << " == Найденные дороги  ==    max_way = " <<  max_way << std::endl;
+	for (auto rrr : WAYS)
+	   {
+	   for (auto node : rrr)
+		  {
+		   std::cout << " | " << node;
+		  }
+	   std::cout << " | " << std::endl;
+	   }
+	 
+
+	return max_way;
+}
