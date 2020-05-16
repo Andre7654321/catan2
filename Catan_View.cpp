@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <stdlib.h>
+#include <chrono>
 #include "CatanField.h"
 #include "Catan_View.h"
 #include "Catan_Step.h"
@@ -16,6 +17,7 @@ extern PLAYER player[5];
 extern int limit_7[5];
 extern int player_num;
 extern int max_road_owner;
+extern int max_army;        //владелец карточки самое большое войско
 
 extern int Play_two_roads;     //флаг игры карты развития 2 дороги
 extern int Play_two_resurs;
@@ -31,6 +33,24 @@ int Field_CATAN_x = 330;
 int Field_CATAN_y  = 160;
 float field_scale = 1.1f;
 
+int Big_Message = -1;
+std::chrono::time_point<std::chrono::steady_clock>  start_Big_Message;
+
+//================================================================
+//  сообщение на весь экран об игре карты развития
+//================================================================
+void Big_Message_Imp_Card(sf::RenderWindow* win,int type)
+    {
+    //задать время иницициализации сообщения
+    std::chrono::duration<float> duration = std::chrono::high_resolution_clock::now() - start_Big_Message;
+    if((float)(duration.count()) > 2.2)   Big_Message = -1;
+
+    float scale = 2.5;
+    if ((float)duration.count() < 1)  scale = 2.5 * duration.count();
+    DrawDevelopCard(win, type, 450,100,scale, 0);
+    return;
+    }
+//----------------------------------------------------------------
 
 sf::Sprite bandit_sprite;
 int bandit_Gecs = -1;
@@ -134,8 +154,8 @@ void Draw_Step_Info(sf::RenderWindow* win)
     if (player_num == Game_Step.current_active_player && Game_Step.current_step >= 1)
         {
         strcpy_s(str, "Your move"); 
-        text_step.setFillColor(sf::Color::Color(120, 255, 120));
-        if (Game_Step.step[4].flag_bandit == 1) { strcpy_s(str, "  Move Banditos  "); text_step.setFillColor(sf::Color::Color(250, 125, 120));  }
+        text_step.setFillColor(sf::Color::Color(105, 255, 120));
+        if (Game_Step.step[4].flag_bandit == 1) { strcpy_s(str, "    Move Banditos  "); text_step.setFillColor(sf::Color::Color(250, 125, 120));  }
         if (isCardsDeletedAfterSeven() == false) { strcpy_s(str, "Wait for cut cards "); text_step.setFillColor(sf::Color::Color(250, 125, 120)); }
         text_step.setCharacterSize(50);  
         text_step.setString(str);
@@ -308,7 +328,7 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
     flag_texture_chBank_set = 1;
     texture_chBank_set.loadFromFile("img/ch_bank_grey.png");
     texture_chBank_clear.loadFromFile("img/Crest_red.png");
-    texture_take_card.loadFromFile("img/Town_green.png");
+    texture_take_card.loadFromFile("img/Take_card.png");
     texture_change.loadFromFile("img/change.png");
     }
  sprite_chBank.setTexture(texture_chBank_set);  
@@ -333,7 +353,7 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
        {
          sprite_change[pl].setTexture(texture_change);
          sprite_change[pl].setScale(0.3, 0.3);
-         sprite_change[pl].setPosition(x + 205, y + 55);
+         sprite_change[pl].setPosition(x + 195, y + 55);
          win->draw(sprite_change[pl]);  
        }
       else sprite_change[pl].setPosition(1000,1000);
@@ -345,7 +365,7 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
  if (pl != player_num && player[pl].flag_allow_get_card == 1)
  {
      sprite_take_card[pl].setTexture(texture_take_card);
-     sprite_take_card[pl].setScale(0.1, 0.1);
+     sprite_take_card[pl].setScale(0.15, 0.15);
      sprite_take_card[pl].setPosition(x + 195, y + 82);
      win->draw(sprite_take_card[pl]);
  }
@@ -371,8 +391,16 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
           }
     }
 
- //сами ресурсы
- for (int i = 0; i < 10; i++)
+ //сами ресурсы рубашкой в зоне обмена
+ int num = getPlayerNumCardResurs(pl);
+    if (num && numCardChange(pl) == 0 && player_num != pl)
+     {
+      if(num > 5)  num = 5;
+      while(num-- > 0)  DrawCard(win, 0, x + 25 + num * 5, y + 27 + num * 2, 0.35);
+     }
+
+  //показываем явно в зоне обмена
+  for (int i = 0; i < 10; i++)
     {
      if(ChangeBANK[pl][i] == 0) continue;  //если ресурса нет, то не прорисовываем
 
@@ -495,6 +523,8 @@ void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
     return;
 }
 
+//int flag_texture_red_box = 0;
+//sf::Texture texture_red_box;
 //=====================================================================
 //    ресурсы и фишки игрока 
 //=====================================================================
@@ -503,6 +533,7 @@ void DrawPlayer(sf::RenderWindow* win)
     int f_x = 200;
     int f_y = 830;
     char str[90],str1[20];
+    sf::Sprite sprite_red_box;
 
     //std::cout << " =======  DRAW PLAYER FIELD ============== " << std::endl;
     
@@ -516,7 +547,7 @@ void DrawPlayer(sf::RenderWindow* win)
         if (i == player_num) continue;   //свой номер
         if (player[i].active == true)
         {
-            DrawTown(win, i, 30, 190 + place * 160, 0.2);
+            DrawTown(win, i, 30, 190 + place * 160, 0.20);
             
             //количество карт игрока
             num = getPlayerNumCardResurs(i);  
@@ -527,8 +558,9 @@ void DrawPlayer(sf::RenderWindow* win)
             text2.setPosition(15, 155 + place * 160);  text2.setString(str);  win->draw(text2);
 
             _itoa_s(i, str, 10);   strcat_s(str, " - player");
+            if (i == Game_Step.current_active_player)  text2.setFillColor(sf::Color::Green);
             text2.setPosition(10, 240 + place * 160);
-            text2.setString(str);   win->draw(text2);
+            text2.setString(str);   win->draw(text2);  text2.setFillColor(sf::Color::White);
 
             //последний бросок кубика
             if (player[i].last_dice != 0)
@@ -599,6 +631,7 @@ void DrawPlayer(sf::RenderWindow* win)
             text2.setPosition(f_x + 280, f_y - 40);  text2.setString(str);  win->draw(text2);
 
             if (max_road_owner == player_num)  Draw_MaxWay(win, f_x + 850, f_y + 30);
+            if (max_army == player_num)        Draw_MaxArmy(win, f_x + 910, f_y + 30);
 
             //карты развития
             Draw_Develop_Cards_Field(win);
@@ -891,6 +924,7 @@ sf::Sprite Active_develop_card[5];
 int flag_textureDcard_set = 0;
 //================================================================
 //  прорисовка 1 карточки развития
+//  status == 1 - привязывать к спрайту для главного окна
 //=================================================================
 void DrawDevelopCard(sf::RenderWindow* win, int Type, int x, int y, float scale,int status)
 {
@@ -902,7 +936,7 @@ void DrawDevelopCard(sf::RenderWindow* win, int Type, int x, int y, float scale,
 
         texture_d_card[(int)IMP_TYPE::KNIGHT].loadFromFile("img/Card_knight.png");
         texture_d_card[(int)IMP_TYPE::ROAD2].loadFromFile("img/Card_road2.png");
-        texture_d_card[(int)IMP_TYPE::RESURS1].loadFromFile("img/Card_resurs1.png");
+        texture_d_card[(int)IMP_TYPE::MONOPOLIA].loadFromFile("img/Card_resurs1.png");
         texture_d_card[(int)IMP_TYPE::RESURS_CARD2].loadFromFile("img/Card_resurs_card2.png");
         texture_d_card[(int)IMP_TYPE::POINT1].loadFromFile("img/Card_point1.png");
     }
@@ -973,9 +1007,9 @@ text2.setFillColor(sf::Color::White);
         }
 
     //
-    num = getNumDevelopCARD(IMP_TYPE::RESURS1,0);
+    num = getNumDevelopCARD(IMP_TYPE::MONOPOLIA,0);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 10, 0.24,1);
+        DrawDevelopCard(win, (int)IMP_TYPE::MONOPOLIA, develop_field_x + 150, develop_field_y + 10, 0.24,1);
         text2.setPosition(develop_field_x + 164, develop_field_y - 8);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
         }
@@ -1022,9 +1056,9 @@ text2.setFillColor(sf::Color::White);
     }
 
     //
-    num = getNumDevelopCARD(IMP_TYPE::RESURS1, 1);
+    num = getNumDevelopCARD(IMP_TYPE::MONOPOLIA, 1);
     if (num) {
-        DrawDevelopCard(win, (int)IMP_TYPE::RESURS1, develop_field_x + 150, develop_field_y + 95, 0.17, 0);
+        DrawDevelopCard(win, (int)IMP_TYPE::MONOPOLIA, develop_field_x + 150, develop_field_y + 95, 0.17, 0);
         text2.setPosition(develop_field_x + 164, develop_field_y + 150);
         _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
     }
@@ -1058,10 +1092,27 @@ void Draw_MaxWay(sf::RenderWindow* win,int x,int y)
     texture.loadFromFile("img/Max_way.png");
     sprite.setTexture(texture);
 
-    sprite.setScale(0.3,0.3);
+    sprite.setScale(0.4,0.4);
     sprite.setPosition(x, y);
     win->draw(sprite);
 }
+
+//================================================================
+//  прорисовка банка ресурсов - карточек ресурсов
+//================================================================
+void Draw_MaxArmy(sf::RenderWindow* win, int x, int y)
+{
+    sf::Sprite sprite;
+    sf::Texture texture;
+
+    texture.loadFromFile("img/Max_army.png");
+    sprite.setTexture(texture);
+
+    sprite.setScale(0.2, 0.2);
+    sprite.setPosition(x, y);
+    win->draw(sprite);
+}
+
 
 //================================================================
 //  прорисовка банка ресурсов - карточек ресурсов

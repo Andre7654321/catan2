@@ -11,9 +11,9 @@ void DrawNodesInfo(sf::RenderWindow*, std::vector<NODE>*);
 void DrawRoads(sf::RenderWindow*, std::vector<NODE>*, std::vector<ROAD>*);
 void DrawRoadsNet(sf::RenderWindow*, std::vector<NODE>*, std::vector<ROAD>*);
 void DrawCard(sf::RenderWindow*,int, int, int, float);
-void DrawDevelopCard(sf::RenderWindow*, int, int, int, float,int);
+void DrawDevelopCard(sf::RenderWindow*, int Type, int x, int y, float scale, int status);
 void Draw_Develop_Cards_Field(sf::RenderWindow*);
-int getNumDevelopCARD(IMP_TYPE, int);
+int  getNumDevelopCARD(IMP_TYPE, int);
 
 void DrawRoad(sf::RenderWindow* , int, int, int, float,int );
 void DrawVillage(sf::RenderWindow*, int, int, int, float);
@@ -31,6 +31,9 @@ void Draw_Cubic(sf::RenderWindow*);
 void DrawBandit(sf::RenderWindow* , std::vector<GECS>*);
 void DrawBanditOnCoord(sf::RenderWindow* , int, int, float);
 void Draw_MaxWay(sf::RenderWindow*, int, int);
+void Draw_MaxArmy(sf::RenderWindow* win, int x, int y);
+
+void Big_Message_Imp_Card(sf::RenderWindow* ,int);
 
 int Game_x(int);
 int Game_y(int);

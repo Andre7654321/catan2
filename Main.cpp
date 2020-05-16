@@ -34,7 +34,6 @@ extern int Field_CATAN_y;
 extern int develop_field_x;
 extern int develop_field_y;
 
-
 extern sf::Sprite sprite_road;
 extern sf::Sprite sprite_town;
 extern sf::Sprite sprite_village;
@@ -47,18 +46,16 @@ extern sf::Sprite sprite_change[5];
 extern sf::Sprite Active_develop_card[5];    //спрайты карт развития
 
 extern int bandit_Gecs;
-
-extern std::string resurs_name[10];
-
+extern std::string resurs_name[10];     //имена ресурсов строкой для вывода в консоль
 
 //глобальные переменные
 int max_road_owner = 0;  //владелец самого длинного тракта
+int max_army = 0;        //владелец карточки самое большое войско
 int player_num = 0;      //номер присваемый игроку   0 - для сервера
 int CARD_Bank[10];       //структура содержащая карточки ресурсов не принадлежание игрокам
 const int MAXPLAYERS = 4;
 PLAYER player[5];       //резервируем массив под максимальное число игроков + server
 int limit_7[5];         //для хранения числа карт, до которого надо скинуть лишнее при броске 7
-//int num_players = 0;
 
 //область обмена ресурсами
 int ChangeBANK[5][10] = {0};
@@ -68,8 +65,10 @@ extern sf::Sprite sprite_Offer[12];
 int Play_two_roads = 0;     //флаг игры карты развития 2 дороги
 int Play_two_resurs = 0;
 int Play_ONE_resurs = 0;
+int Allow_Develop_card = 0;    //разрешение сыграть карту развития
 
 int Draw_Big_Develop_CARD = -1;
+extern int Big_Message;
 
 bool village_ismove = false;    //перетаскивание деревни
 bool town_ismove = false;       //перетаскивание города
@@ -91,16 +90,16 @@ int main()
    std::vector<GECS> Gecs;
    std::vector<NODE> Field;
    std::vector<ROAD> Roads;
-
    gecsPtr = &Gecs;   nodePtr = &Field;   roadPtr = &Roads;
    Init_CATAN_Field(&Gecs, &Field, &Roads);
    //--------------------------------------------------------------------
 
    Game_Step.current_step          = 0;           //начало игры
    Game_Step.start_player          = 1;
-   Game_Step.current_active_player = 1;           //бросок кубика за игроком №0
+   Game_Step.current_active_player = 1;           //бросок кубика за игроком №1
 
-    char connectionType;
+   //выбор варианта загрузки - сервер или игрок ==================================== 
+   char connectionType;
     std::cout << "Enter (s) for server, Enter (c) for client" << std::endl;
     std::cin >> connectionType;
     
@@ -109,7 +108,7 @@ int main()
     else
        {
         std::cin.clear();
-        //так как при подключении сервер нам передаст расположение гексов, а дороги и узлы не должны меняться
+        //при подключении сервер нам передаст расположение гексов, а дороги и узлы не должны меняться
         int ret = Init_Client_CATAN();
         if (ret == 0) { std::cout << "  No connect , exit" << std::endl;     return 0; }
        }
@@ -117,7 +116,7 @@ int main()
     //SMFL --------------------------------------------------------------------------------------
     sf::RenderWindow window(sf::VideoMode(1200, 960), "CATAN standart FIELD", sf::Style::Close);
     window.setPosition(sf::Vector2i(470.0f, 0.0f));
-        
+       
     //толстая дорога, рисуется прямоугольником, требует поворота фигуры если идет под углом
     sf::RectangleShape Road(sf::Vector2f(60.f, 7.f));   //параметры  ширина и высота
     Road.setOrigin(0, 4);  //смещаем центр разворота в середину толщины линии
@@ -134,13 +133,10 @@ int main()
         {
             if (event.type == sf::Event::Closed)       window.close();
 
-            //отслеживает состояние клавиш, а не факт нажатия
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))  {  flag_draw_gecs ? flag_draw_gecs = false : flag_draw_gecs = true; } 
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) { flag_draw_node ? flag_draw_node = false : flag_draw_node = true; }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))    { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))  { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
+            //отслеживает состояние клавиш, а не событие нажатия
+            //if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) { flag_draw_gecs ? flag_draw_gecs = false : flag_draw_gecs = true; }
 
-            // заявки на обмен с игроком - проверка только своих заявок
+            // заявки на обмен с игроком - проверка корректности по наличию ресурса  - только своих заявок
             bool del;
             for (int s = 0; s < 12; s++)
                 {
@@ -163,80 +159,98 @@ int main()
                     }
                 }
 
-
-            //отслеживает факт нажатия R - тест подсчета длины дороги только для сервера
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::R && player_num == 0)
-                {   Count_Road_LengthTest(1);       }
-
-            if (isCardsDeletedAfterSeven() == false)   continue;    //ожидание сброса карт игроками после 7
-            if (player_num == 0)   continue;                        //блокировка для сервера
+            if (st == 4 && isCardsDeletedAfterSeven() == false)   continue;    //ожидание сброса карт игроками после броска 7
             
-            //обработка сброса карт по 7
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space 
-                    && player_num != Game_Step.current_active_player && getPlayerNumCardResurs(player_num) >= limit_7[player_num])
+            //отпуск клавиши клавиатуры
+            if (event.type == sf::Event::KeyReleased)
                 {
-                if (st == 4)  AskSendCardsToBank();
-                continue;
-                }
-            
-            //тестовый переход на 4 шаг для отладки
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::F10 && player_num == Game_Step.current_active_player)
-            {
-               //обавляет ресурсов, ставит 1 и 2 игроку 2 города, позволяет нырнуть сразу на 4 шаг
-                Test_Game();
-            }
+                //переключение режимов отображения поля
+                if (event.key.code == sf::Keyboard::Numpad4) { flag_draw_gecs ? flag_draw_gecs = false : flag_draw_gecs = true; }
+                if (event.key.code == sf::Keyboard::Numpad6) { flag_draw_node ? flag_draw_node = false : flag_draw_node = true; }
+                if (event.key.code == sf::Keyboard::Numpad8) { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
+                if (event.key.code == sf::Keyboard::Numpad2) { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
-            //перезапуск игры - уход на 0 уровень
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::F1 && player_num == Game_Step.current_active_player)
-                   {
-                   Ask_Reset_Game();
-                   }
-            
-            //отслеживает факт нажатия SPACE - завершение хода
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
-                  {
-                     player[player_num].flag_allow_change = 0;   //запрет обменов
-                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0) 
-                              { Say_Move_Over();  Game_Step.current_active_player = 0;  }
-                     if (st == 3 || st == 2)
-                         {
-                         if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
-                                   { Say_Move_Over();  Game_Step.current_active_player = 0;  }
-                         }
-                     if (st == 1)  {   Say_Roll_1Dice();   Game_Step.current_active_player = 0;  }
-                     if (st == 0)  Say_Start();
-                  }
-
-            //переход по ESC
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Escape && player_num == Game_Step.current_active_player 
-                     && Game_Step.step[st].flag_bandit == 0)
-            {
-                if (st == 4)  //возврат к моменту начала строительства
-                {
-                    Ask_Send_Arrays();
-                    Ask_Send_Resurs();
-                    Ask_Send_Objects();
-                }
-                if (st == 2)
+                //отслеживает факт нажатия R - тест подсчета длины дороги только для сервера
+                /*
+                if (event.key.code == sf::Keyboard::R && player_num == 0)
                     {
-                    Ask_Send_Arrays();    //по ECS можно переходить до момента завершения хода
-                    Ask_Send_Objects();
-                    Game_Step.step[st].flag_set_one_Village = 1;
-                    Game_Step.step[st].flag_set_one_Road = 1;
-                    //player[player_num].village = 5;
-                    //player[player_num].road = 15;
+                    Count_Road_LengthTest(1);
                     }
-                if (st == 3)
+                 */
+
+                 //тестовый переход по F10   на 4 шаг для отладки
+                if (event.key.code == sf::Keyboard::F10 && player_num > 0)
                 {
-                    Ask_Send_Arrays();     //по ECS можно переходить до момента завершения хода
-                    Ask_Send_Objects();
-                    //player[player_num].village = 4;
-                    //player[player_num].road = 14;
-                    player[player_num].last_village_node = -1;
-                    Game_Step.step[st].flag_set_one_Village = 1;
-                    Game_Step.step[st].flag_set_one_Road = 1;
+                    //добавляет ресурсов, ставит 1 и 2 игроку 2 города, позволяет нырнуть сразу на 4 шаг
+                    Test_Game();
                 }
-            }
+
+                //обработка сброса карт по 7
+                if (st == 4 && event.key.code == sf::Keyboard::Space && player_num > 0
+                    && player_num != Game_Step.current_active_player && getPlayerNumCardResurs(player_num) >= limit_7[player_num])
+                    {
+                    AskSendCardsToBank();
+                    continue;
+                    }
+
+                //перезапуск игры - уход на 0 уровень
+                if (event.key.code == sf::Keyboard::F1)
+                   {
+                    Ask_Reset_Game();
+                   }
+
+                //отслеживает факт нажатия SPACE - завершение хода
+                if (event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
+                {
+                    player[player_num].flag_allow_change = 0;   //запрет обменов
+                    if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0)
+                    {
+                        Say_Move_Over();  Game_Step.current_active_player = 0;
+                    }
+                    if (st == 3 || st == 2)
+                    {
+                        if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
+                        {
+                            Say_Move_Over();  Game_Step.current_active_player = 0;
+                        }
+                    }
+                    if (st == 1) { Say_Roll_1Dice();   Game_Step.current_active_player = 0; }
+                    if (st == 0)  Say_Start();
+                }
+
+                //переход по ESC
+                if (event.key.code == sf::Keyboard::Escape && player_num == Game_Step.current_active_player
+                    && Game_Step.step[st].flag_bandit == 0)
+                {
+                    if (st == 4)  //возврат к моменту начала строительства
+                    {
+                        Ask_Send_Arrays();
+                        Ask_Send_Resurs();
+                        Ask_Send_Objects();
+                    }
+                    if (st == 2)
+                    {
+                        Ask_Send_Arrays();    //по ECS можно переходить до момента завершения хода
+                        Ask_Send_Objects();
+                        Game_Step.step[st].flag_set_one_Village = 1;
+                        Game_Step.step[st].flag_set_one_Road = 1;
+                        //player[player_num].village = 5;
+                        //player[player_num].road = 15;
+                    }
+                    if (st == 3)
+                    {
+                        Ask_Send_Arrays();     //по ECS можно переходить до момента завершения хода
+                        Ask_Send_Objects();
+                        //player[player_num].village = 4;
+                        //player[player_num].road = 14;
+                        player[player_num].last_village_node = -1;
+                        Game_Step.step[st].flag_set_one_Village = 1;
+                        Game_Step.step[st].flag_set_one_Road = 1;
+                    }
+                }
+                }
+
+            if (player_num == 0)   continue;        //блокировка для сервера
            
             //если нажата клавиша мыши правая
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Right)
@@ -312,7 +326,7 @@ int main()
                        }
                 }
 
-                //иконка стереть банк обмена
+                //иконка очистить банк обмена
                 if (sprite_chBank_clear.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
                 {
                  for (int i = 0; i < 10; i++)  ChangeBANK[player_num][i] = 0;
@@ -323,49 +337,41 @@ int main()
                 if (pixelPos.x > develop_field_x && pixelPos.x < develop_field_x + 300 && pixelPos.y > develop_field_y && pixelPos.y < develop_field_y + 90)
                      {
                      //std::cout << "  Develop selected  " << std::endl;
+                     if(Allow_Develop_card == 0) continue;
                      if (Game_Step.current_active_player != player_num)  continue;
                      if (Game_Step.step[st].flag_bandit == 1)  continue;
-                     if (st == 4 && Game_Step.step[4].roll_2_dice == 1)   continue;         //еще не кинут кубик
 
                       //по реализации карт загнать все в цикл
                       //карта 1 очко
                       if (Active_develop_card[(int)IMP_TYPE::POINT1].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::POINT1, 0) > 0)
                           {
-                          //std::cout << "  Card 1 point selected  " << std::endl;
-                          //переслать запрос серверу сыграть карту развития
                           AskPlayDevelopCard(IMP_TYPE::POINT1);
                           }
 
                       //карта рыцарь
                       if (Active_develop_card[(int)IMP_TYPE::KNIGHT].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::KNIGHT, 0) > 0)
                           {
-                          //std::cout << "  Card knight selected  " << std::endl;
-                          //переслать запрос серверу сыграть карту развития
                           AskPlayDevelopCard(IMP_TYPE::KNIGHT);
                           }
 
                       //карта 2 дороги
                       if (Active_develop_card[(int)IMP_TYPE::ROAD2].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::ROAD2, 0) > 0)
                           {
-                          //std::cout << "  Card Road2 selected  " << std::endl;
-                          //переслать запрос серверу сыграть карту развития
                           AskPlayDevelopCard(IMP_TYPE::ROAD2);
                           }
 
                       //карта 2 ресурса
                       if (Active_develop_card[(int)IMP_TYPE::RESURS_CARD2].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, 0) > 0)
                           {
-                          //std::cout << "  Card RESURS_CARD2 selected  " << std::endl;
-                          //переслать запрос серверу сыграть карту развития
                           AskPlayDevelopCard(IMP_TYPE::RESURS_CARD2);
                           }
 
                       //карта 1 вид ресурса со всех
-                      if (Active_develop_card[(int)IMP_TYPE::RESURS1].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::RESURS1, 0) > 0)
+                      if (Active_develop_card[(int)IMP_TYPE::MONOPOLIA].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::MONOPOLIA, 0) > 0)
                           {
                           //std::cout << "  Card RESURS1 selected  " << std::endl;
                           //переслать запрос серверу сыграть карту развития
-                          AskPlayDevelopCard(IMP_TYPE::RESURS1);
+                          AskPlayDevelopCard(IMP_TYPE::MONOPOLIA);
                           }
                           
                      }
@@ -696,6 +702,8 @@ int main()
 
             //если правая клавиша мышки выбрала карту развития
             if(Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 1.6f, 0);
+
+            if (Big_Message != -1)  Big_Message_Imp_Card(&window, Big_Message);
             
             window.display();
           //------------------------- конец отрисовки ------------------------

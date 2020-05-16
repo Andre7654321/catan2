@@ -22,9 +22,9 @@ enum class IMP_TYPE
 {
 	KNIGHT,
 	ROAD2,
-	RESURS1,
+	MONOPOLIA,
 	RESURS_CARD2,
-	POINT1,
+	POINT1
 };
 
 //карта развития
@@ -57,8 +57,8 @@ enum class RESURS
 struct CHANGE
 {
  int status = 0;
- int from_pl;
- int to_pl;
+ int from_pl = 0;
+ int to_pl = 0;
  int offer_num[6];
  int need_num[6];
 };

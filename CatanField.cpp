@@ -21,6 +21,7 @@ extern std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
 
 extern int bandit_Gecs;
 extern int max_road_owner;
+extern int max_army;
 
 
 //размер 15 на 20 - универсальный для большого поля
@@ -90,7 +91,6 @@ PLAYER::PLAYER()
     resurs[(int)RESURS::FISH3] = 0;
 };
 //============================= PLAYER   end =============================================
-
 
 //===========================================================================
 // возвращает количество карт в банке обмена
@@ -202,8 +202,9 @@ int CountScore(int pl)
 
  //дорога
  if (max_road_owner == pl) score += 2;
+ if (max_army == pl) score += 2;
 
- //карточки развития - очки         +      войско ???
+ //карточки развития - очки
  for (auto& elem : develop_CARDS[pl])
      {
      if (elem.status == 1 && elem.type == IMP_TYPE::POINT1)  score += 1;
@@ -304,6 +305,8 @@ int AddNewNode(int x, int y, std::vector<NODE>* PtrNode)
 
     //добавляем узел в вектор
     PtrNode->push_back(NODE(x, y));
+    PtrNode->back().owner = -1;
+    PtrNode->back().object = -1;
 
     return 1;
 }
@@ -339,7 +342,6 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
 
  int i, ii;
 
- srand(time(0)); 
  int coner = rand() % 6;   //рандомно выбирается стартовый угол обхода для присвоения номера
  //std::cout << "  Присвоение номеров с угла   " << coner << std::endl;
 
@@ -362,8 +364,6 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
 void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
 {
  int i, ii;
-
-    srand(time(0)); // автоматическая рандомизация
 
     //массив с видом и кол-вом ресурсов в начале этого файла Simple_Game[19]
     for (i = 0; i < 19; i++)
@@ -428,7 +428,9 @@ bool isVillageNear(int index)
 int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std::vector<ROAD>* PtrRoad)
 {
 
-//инициализация сетки расположения гексов ---------------------------------------------------------
+    srand(time(0)); // автоматическая рандомизация
+
+ //инициализация сетки расположения гексов ---------------------------------------------------------
     for (int ii = 0; ii < 15; ii++)
     {
         for (int i = 0; i < 20; i++)
@@ -437,7 +439,7 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
             if (CATAN19[ii][i] == 0)  continue;    //по координате X == 0 не может быть расположения гекса
 
             //По номеру гекса рассчитать его координаты
-            int x = (CATAN19[ii][i] * 4 - 2*(ii%2)) * 10;
+            int x = (CATAN19[ii][i] * 4 - 2 * (ii % 2)) * 10;
             int y = (ii * 3 + 2) * 10;     //номер ряда выступает в качестве координаты y для гекса
 
             PtrGecs->push_back(GECS(x, y));  //добавляем в конец вектора
@@ -452,61 +454,63 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
 
     //вывод инфо по гексам -----------------------
     int i = 0;
-    for(auto &elem : *PtrGecs)
-       {
+    for (auto& elem : *PtrGecs)
+        {
         //std::cout << i++ << "\tGecs x = " << elem.getGecs_x() <<  "\t|  y = " <<  elem.getGecs_y() << "  " << resurs_name[(int)elem.type] << std::endl;
-       }
+        }
 
-//по массиву гексов заполнить массив узлов поля --------------------------------------------------
-    int nx,ny;
+    //по массиву гексов заполнить массив узлов поля --------------------------------------------------
+    int nx, ny;
     for (auto& elem : *PtrGecs)
     {
         //каждому гексу рассчитать 6 вершин
-        nx = elem.getGecs_x();      ny = elem.getGecs_y()  - 20;  AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x()+20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x()+20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x();      ny = elem.getGecs_y()  + 20;  AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x()-20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x()-20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x();        ny = elem.getGecs_y() - 20;  AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x() + 20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x() + 20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x();      ny = elem.getGecs_y() + 20;  AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x() - 20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x() - 20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
+
     }
 
-    std::cout <<  "\n ===============Поле узлов CATAN FIELD ================ "  << std::endl;
+    std::cout << "\n ===============Поле узлов CATAN FIELD ================ " << std::endl;
     i = 0;
     //пронумеруем индексы узлов 
     for (auto& n : *PtrNode)
-    {
-     n.number = i;
-     //std::cout << i << "\tNode x = " << n.getNode_x() << "\t|  y = " << n.getNode_y() << " index = " << n.number << std::endl;
-     i++;
-    }
+        {
+        n.number = i;
+        //std::cout << i << "\tNode x = " << n.getNode_x() << "\t|  y = " << n.getNode_y() << " index = " << n.number << std::endl;
+        i++;
+        }
 
-//по массиву узлов заполнить дороги ----------------------------------------------------------------------
+    //по массиву узлов заполнить дороги ----------------------------------------------------------------------
     int road_num = 0;
-    int x_next,y_next;
-    int start = 0,end = 0;
+    int x_next, y_next;
+    int start = 0, end = 0;
     std::vector<NODE>* PtrNode2;
     PtrNode2 = PtrNode;
     for (auto& n : *PtrNode)
     {
-    //если находим узел с координатам до которого расстояние менее 2.02 единиц
-    //то считаем это узел соседним и регистрируем путь от нашего узла до найденного
+        //если находим узел с координатам до которого расстояние менее 2.02 единиц
+        //то считаем это узел соседним и регистрируем путь от нашего узла до найденного
         nx = n.getNode_x(); ny = n.getNode_y();   //текущий узел
         end = 0;
         for (auto& next : *PtrNode2)
-          {
-           x_next = next.getNode_x(); y_next = next.getNode_y();
-           if (x_next == nx && y_next == ny)   continue;         //если сравниваем узел сам с собой
-           if (abs(x_next - nx) <= 20 && abs(y_next - ny) <= 20)
-                    {
-                    //add road
-                    start = n.getNode_number();
-                    end = next.getNode_number();
-                    AddNewRoad(start, end, PtrRoad);
-                    }
-          } //foreach in
+        {
+            x_next = next.getNode_x(); y_next = next.getNode_y();
+            if (x_next == nx && y_next == ny)   continue;         //если сравниваем узел сам с собой
+            if (abs(x_next - nx) <= 20 && abs(y_next - ny) <= 20)
+            {
+                //add road
+                start = n.getNode_number();
+                end = next.getNode_number();
+                AddNewRoad(start, end, PtrRoad);
+            }
+        } //foreach in
     }  //foreach out
 
-   for (int i = 1; i < 5; i++)
+   //начальные условия игроков - фишки, пустые вектора карт развития
+    for (int i = 1; i < 5; i++)
     {
         for (int ii = 0; ii < 10; ii++)   player[i].resurs[ii] = 0;
         player[i].road = 15;
@@ -516,48 +520,56 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
         develop_CARDS[i].clear();
     }
 
-   //-----------------------------  бонусы узлов  -------------------------------------------
-   PtrNode->at(1).type = 0;     PtrNode->at(6).type = 0;   PtrNode->at(10).type = 0;    PtrNode->at(11).type = 0;  // 3:1
-   PtrNode->at(52).type = 0;    PtrNode->at(53).type = 0;  PtrNode->at(27).type = 0;    PtrNode->at(28).type = 0; // 3:1
-   PtrNode->at(37).type = 1;    PtrNode->at(45).type = 1;   //wood
-   PtrNode->at(22).type = 2;    PtrNode->at(23).type = 2;   //bricks
-   PtrNode->at(47).type = 3;    PtrNode->at(51).type = 3;   //bread
-   PtrNode->at(39).type = 4;    PtrNode->at(40).type = 4;   //stone
-   PtrNode->at(4).type = 5;     PtrNode->at(17).type = 5;   //ovca
+    //-----------------------------  бонусы узлов  -------------------------------------------
+    PtrNode->at(1).type = 0;     PtrNode->at(6).type = 0;   PtrNode->at(10).type = 0;    PtrNode->at(11).type = 0;  // 3:1
+    PtrNode->at(52).type = 0;    PtrNode->at(53).type = 0;  PtrNode->at(27).type = 0;    PtrNode->at(28).type = 0; // 3:1
+    PtrNode->at(37).type = 1;    PtrNode->at(45).type = 1;   //wood
+    PtrNode->at(22).type = 2;    PtrNode->at(23).type = 2;   //bricks
+    PtrNode->at(47).type = 3;    PtrNode->at(51).type = 3;   //bread
+    PtrNode->at(39).type = 4;    PtrNode->at(40).type = 4;   //stone
+    PtrNode->at(4).type = 5;     PtrNode->at(17).type = 5;   //ovca
 
-   //переделать на рандомное заполнение карт развития
-   improve_CARDS.clear();
-   IMP_CARD ttt = { -1, IMP_TYPE::KNIGHT };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    //================ карты развития ================================================================
+    //число карт развития в базовой игре - рыцари - 14, победное очко - 5, стр дорог - 2 , монополия - 2, 2 карты ресурса - 2
+    improve_CARDS.clear();
+    int pos;
+    IMP_CARD ttt;
+    ttt.status = -1;    ttt.type = IMP_TYPE::KNIGHT;
+    for (pos = 0; pos < 14; pos++)  improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    ttt.status = 0;
+    ttt.type = IMP_TYPE::POINT1;
+    for (pos = 0; pos < 5; pos++)  improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    ttt.type = IMP_TYPE::ROAD2;
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    ttt.type = IMP_TYPE::RESURS_CARD2;
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    ttt.type = IMP_TYPE::MONOPOLIA;
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
+    improve_CARDS.insert(improve_CARDS.begin(), ttt);
 
-   IMP_CARD ttt1 = { 0, IMP_TYPE::ROAD2 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
+    //перетасовать карты развития
+    for (int i = 0; i < 500; i++)
+        {
+        pos = rand() % improve_CARDS.size();
+        //прочитать карту
+        ttt.status = improve_CARDS.at(pos).status;
+        ttt.type = improve_CARDS.at(pos).type;
+        //удалить карту
+        improve_CARDS.erase(improve_CARDS.begin() + pos);
+        //добавить в конец карту
+        improve_CARDS.push_back(ttt);
+        }
 
-   IMP_CARD ttt2 = { 0, IMP_TYPE::POINT1 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt2);
+   //================ Банк ресурсов ================================================================
+   CARD_Bank[(int)RESURS::WOOD] = 19; 
+   CARD_Bank[(int)RESURS::STONE] = 19; 
+   CARD_Bank[(int)RESURS::OVCA] = 19;
+   CARD_Bank[(int)RESURS::BREAD] = 19; 
+   CARD_Bank[(int)RESURS::BRICKS] = 19;
 
-   IMP_CARD ttt3 = { 0, IMP_TYPE::RESURS_CARD2 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt3);
-
-   improve_CARDS.insert(improve_CARDS.begin(), ttt);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt1);
-
-   IMP_CARD ttt4 = { 0, IMP_TYPE::RESURS1 };
-   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
-   improve_CARDS.insert(improve_CARDS.begin(), ttt4);
-   //-------------------------------------------------------------------------------
-
-   CARD_Bank[(int)RESURS::WOOD] = 19; CARD_Bank[(int)RESURS::STONE] = 19; CARD_Bank[(int)RESURS::OVCA] = 19;
-   CARD_Bank[(int)RESURS::BREAD] = 19; CARD_Bank[(int)RESURS::BRICKS] = 19;
+   max_road_owner = 0;
 
     return 1;
 }

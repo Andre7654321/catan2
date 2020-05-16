@@ -20,10 +20,12 @@
 extern int player_num;
 extern int bandit_Gecs;
 extern int max_road_owner;
+extern int max_army;        //владелец карточки самое большое войско
 
 extern int Play_two_roads;     //флаг игры карты развития 2 дороги
 extern int Play_two_resurs;    //флаг игры карты развития 2 ресурса
 extern int Play_ONE_resurs;
+extern int Allow_Develop_card;
 
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
@@ -34,12 +36,14 @@ extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 SOCKET Connection;   //подключение клиента
 #define MY_PORT 2489
 char addr_listen[20] = "192.168.2.39";
+char addr_UDP[20] = " ";
 char addr_connect[20] = "192.168.2.39"; 
 //char addr_connect[20] = "127.0.0.1";
 
 
 //для сервера
-SOCKET Connections[10] = { 0,0,0,0,0,0,0,0,0,0 };    //подключения игроков 
+SOCKET Connections[6] = { 0,0,0,0,0,0 };    //подключения игроков
+char str_Player_addr[6][20];
 int Counter = 0;           //счетчик подключений
 
 std::mutex mtx1;    //защищает поток сообщений cout
@@ -53,6 +57,8 @@ extern std::vector<IMP_CARD> develop_CARDS[5];
 extern int limit_7[5];
 
 extern std::string resurs_name[10];
+extern int Big_Message;              //номер ресурса для вывода сообщения
+extern std::chrono::time_point<std::chrono::steady_clock>  start_Big_Message;
 
 //область обмена ресурсами
 extern int ChangeBANK[5][10];
@@ -88,7 +94,7 @@ DICE_SEVEN,
 BANDIT_GECS,
 ASK_CHANGE_BANK,
 PLAYER_CHANGE_AREA,
-MAX_WAY_OWNER,
+MAX_WAY_ARMY_OWNER,
 SEND_CARDS_TO_BANK,
 INFO_CHANGE_BANK,
 TAKE_CARD_FROM_PLAYER,
@@ -135,7 +141,7 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::BANDIT_GECS,	        "zCATANz BANDIT_GECS"},
 	{NET_COMMAND::ASK_CHANGE_BANK,	    "zCATANz ASK_CHANGE_BANK"},
 	{NET_COMMAND::PLAYER_CHANGE_AREA,	"zCATANz PLAYER_CHANGE_AREA"},
-	{NET_COMMAND::MAX_WAY_OWNER,	    "zCATANz MAX_WAY_OWNER"},
+	{NET_COMMAND::MAX_WAY_ARMY_OWNER,	"zCATANz MAX_WAY_ARMY_OWNER"},
 	{NET_COMMAND::SEND_CARDS_TO_BANK,	"zCATANz SEND_CARDS_TO_BANK"},
 	{NET_COMMAND::INFO_CHANGE_BANK,	    "zCATANz INFO_CHANGE_BANK"},
 	{NET_COMMAND::TAKE_CARD_FROM_PLAYER,"zCATANz TAKE_CARD_FROM_PLAYER"},
@@ -160,6 +166,8 @@ std::map<NET_COMMAND, std::string> Map_Command =
 void Test_Game()
 {
 	char msg[256];
+
+	std::cout << " ASK FOR TEST MODE STEP 4 " << std::endl;
 
 	strcpy_s(msg, Map_Command[NET_COMMAND::TEST_GAME].c_str());
 	send(Connection, msg, sizeof(msg), NULL);
@@ -198,7 +206,17 @@ void Check_UDP()
 
 	// Setup the TCP listening socket
 	ServerAddr.sin_family = AF_INET;
-	ServerAddr.sin_addr.s_addr = inet_addr(addr_listen);      
+	ServerAddr.sin_addr.s_addr = inet_addr(addr_listen);
+	//современное преобразование строкового адреса
+	// inet_pton(AF_INET, «192.0.2.1», &(ServerAddr.sin_addr));          IPv4
+	// inet_pton(AF_INET6, «2001:db8:63b3 : 1::3490», &(sa6.sin6_addr));  IPv6
+	// обратное преобразование в печптн строку -   inet_ntop(AF_INET, &(sa.sin_addr), ip4, INET_ADDRSTRLEN);
+	// где ip4[INET_ADDRSTRLEN]; - строка для сохранения адреса
+	
+	//struct sockaddr_in6 sa6; 
+	//inet_ntop(AF_INET6, &(sa6.sin6_addr), ip6, INET6_ADDRSTRLEN);    IPv6
+	//inet_ntoa(). Она также устарела и не будет работать с IPv6
+
 	ServerAddr.sin_port = htons(12345);
 	err = bind(SendRecvSocket, (sockaddr*)&ServerAddr, sizeof(ServerAddr));
 	if (err == SOCKET_ERROR) 
@@ -221,8 +239,6 @@ void Check_UDP()
 
 
 			//после получения сообщения --------------------------------------------------------------
-			// вычисляем результат
-			int result = 72;           //заполняем значение от фонаря
 
 			//snprintf_s(	char* buffer, size_t sizeOfBuffer, size_t count, const char* format[,argument] ...
 			//  buffer	Место хранения выходных данных.
@@ -234,11 +250,12 @@ void Check_UDP()
 			//формируем строку ответа
 			//_snprintf_s(result_string, maxlen, maxlen, "OK %d\n", result);
 
+			//используем просто тупой вариант копирования строки с адресом в выходной буфер
 			strcpy(result_string, addr_listen);   //записываем в возвращаемую строку адрес сервера в локальной сети                    //
 
-			// отправляем результат 
+			// отправляем результат  запросившему адрес клиенту
 			sendto(SendRecvSocket, result_string, strlen(result_string), 0, (sockaddr*)&ClientAddr, sizeof(ClientAddr));
-			printf("UDP Sent answer: %s\n", result_string);
+			printf("UDP Sent answer: %s\n", result_string);   //контрольнй вывод ответа на запрос на своою консоль
 		    }
 		   else {
 			    printf("UDP recv failed: %d\n", WSAGetLastError());
@@ -768,7 +785,7 @@ int Count_Num_players()
 return num;
 }
 
-//===============================================================================================       CLIENT NET !!!!
+//===============================================================================================       CLIENT NET CYCLE
  //функция клиента для обработки сообщений от серверной части
  //при получении пакета выводит сообщение в чат если это сообщение игрока
  //если это системное сообщение CATAN обрабатывает
@@ -810,7 +827,16 @@ void ClientHandler(int index)
 				
 				if (Command == NET_COMMAND::SET_N_PLAYER)
 				    {
-					player_num = atoi(&msg[50]);	player[player_num].active = true;    //в своей структуре активируем игрока
+					player_num = atoi(&msg[50]);
+
+					//сервер не выдал номер игроку
+					if(player_num == 0)
+					   {
+						closesocket(Connection);
+						//.....
+						return;  //выходим из потока 
+					   }
+					player[player_num].active = true;    //в своей структуре активируем игрока
 					std::cout << "Вам присвоен номер: " << player_num << std::endl;
 					continue;
 				    }
@@ -851,6 +877,14 @@ void ClientHandler(int index)
 
 				if (Command == NET_COMMAND::SET_N_ACTIVE_PLAYER)
 				    {
+					Game_Step.step[4].flag_bandit = 0;
+
+					//сброс флагов игры карт развития
+					Play_two_resurs = 0;
+					Play_ONE_resurs = 0;
+					Play_two_roads  = 0;
+					Allow_Develop_card = 1;
+
 					//отмена всех предлож на обмен
 					for (int i = 0; i < 12; i++)  Change[i].status = 0;
 
@@ -860,7 +894,7 @@ void ClientHandler(int index)
 					for (int ii = 1; ii < 5; ii++)   { player[ii].flag_allow_get_card = 0;  limit_7[ii] = 0; }
 
 					//стираем надпись своего последнего броска
-					if(player_num == Game_Step.current_active_player && Game_Step.current_step == 4)
+					if(player_num == Game_Step.current_active_player && (Game_Step.current_step == 4 || Game_Step.current_step < 2))
 						          player[player_num].last_dice = 0;
 					continue;
 				    }
@@ -921,9 +955,17 @@ void ClientHandler(int index)
 
 				if (Command == NET_COMMAND::DICE_SEVEN)
 				    {
+					//пропускаем если в тесте и много карт на руках
+					if (player[player_num].resurs[1] > 30)
+					    {
+						std::cout << " Вы бросили 7 / TEST MODE BANDIN DOESNT WORK " << std::endl;
+						continue;   //**************************
+					    }
 					int pl = atoi(&msg[50]);
 					if(pl == player_num)
 					       {
+						   //освободить банк обмена
+						   InitChange_BANK();    //чтобы получив карту за рыцаря она падала в пустое поле
 						   //std::cout << " Вы бросили 7 на кубиках !!!! " << std::endl;
 						   Game_Step.step[4].flag_bandit = 1;
 						   //подсчитать сколько карт должно остаться у игроков чтобы продолжить игру
@@ -949,15 +991,16 @@ void ClientHandler(int index)
 				{
 					int pl = atoi(&msg[50]);
 					int type = atoi(&msg[54]);
+
+					Big_Message = type;
+					start_Big_Message = std::chrono::high_resolution_clock::now();
+
 					if (pl == player_num && type == (int)IMP_TYPE::KNIGHT)
 					    {
-					    //std::cout << " Вы играете карту Рыцаря " << std::endl;
 						Game_Step.step[4].flag_bandit = 1;
 					    }
-
 					if (pl == player_num && type == (int)IMP_TYPE::ROAD2)
 					    {
-						//std::cout << " Вы играете карту 2 дороги " << std::endl;
 						Play_two_roads = 2;
 					    }
 					if (pl == player_num && type == (int)IMP_TYPE::RESURS_CARD2)
@@ -965,12 +1008,12 @@ void ClientHandler(int index)
 						std::cout << " Вы играете карту 2 ресурса " << std::endl;
 						Play_two_resurs = 2;
 					    }
-					if (pl == player_num && type == (int)IMP_TYPE::RESURS1)
+					if (pl == player_num && type == (int)IMP_TYPE::MONOPOLIA)
 					    {
 						std::cout << " Вы играете карту 1 ресурс со всех " << std::endl;
 						Play_ONE_resurs = 1;
 					    }
-
+					Allow_Develop_card = 0;
 					continue;
 				}
 
@@ -988,9 +1031,10 @@ void ClientHandler(int index)
 					continue;
 				}
 
-				if (Command == NET_COMMAND::MAX_WAY_OWNER)
+				if (Command == NET_COMMAND::MAX_WAY_ARMY_OWNER)
 				    {
 					max_road_owner = atoi(&msg[50]);
+					max_army = atoi(&msg[54]);
 					continue;
 				    }
 
@@ -1107,9 +1151,44 @@ int Init_Client_CATAN(void)
 	char* recvbuf = new char[maxlen];  // буфер приема
 	char* query = new char[maxlen];  // буфер отправки
 
+	
+	//------ получаем свой локальный адрес для определения VLAN --------------------------------
+	char chInfo[64];
+	if (!gethostname(chInfo, sizeof(chInfo)))
+	{
+		std::cout << "Host Name =   " << chInfo << std::endl;
+		struct hostent* sh;
+		sh = gethostbyname((char*)&chInfo);
+		if (sh != NULL)
+		{
+			int nAdapter = 0;
+			while (sh->h_addr_list[nAdapter])
+			{
+				struct sockaddr_in adr;
+				memcpy(&adr.sin_addr, sh->h_addr_list[nAdapter], sh->h_length);
+				printf("%s\n", inet_ntoa(adr.sin_addr));
+				if (nAdapter == 0)
+				    {
+					strcpy_s(addr_listen, inet_ntoa(adr.sin_addr));    //запоминаем адрес первого адаптера
+					//заменить последний октет на 255
+					adr.sin_addr.S_un.S_un_b.s_b4 = 255;
+					strcpy_s(addr_UDP, inet_ntoa(adr.sin_addr));
+				    }
+				nAdapter++;
+			}
+		}
+	}
+	printf("Local Address : \t%s \n", addr_listen);
+	printf("Broadcast Address : \t%s \n", addr_UDP);
+
 	// Create a SOCKET for connecting to server
 	//SendRecvSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	SendRecvSocket = socket(AF_INET, SOCK_DGRAM, 0);
+	if(SendRecvSocket == INVALID_SOCKET)
+	   { 
+		std::cout << "Error in creating socket UDP \n";
+		return 1;
+	   }
 
 	char broadcast = '1';     //глубина посылки нет вроде ??
 	if (setsockopt(SendRecvSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0)
@@ -1119,7 +1198,7 @@ int Init_Client_CATAN(void)
 	     }
 
 	ServerAddr.sin_family = AF_INET;
-	ServerAddr.sin_addr.s_addr = inet_addr("192.168.2.255");   //WIDE ADDRESS FOR LOCAL DOMAIN
+	ServerAddr.sin_addr.s_addr = inet_addr(addr_UDP);   //WIDE ADDRESS FOR LOCAL DOMAIN
 	ServerAddr.sin_port = htons(12345);
 
 	//нахрена исп такой мудреный путь запонения буфера отправки
@@ -1146,7 +1225,7 @@ int Init_Client_CATAN(void)
 	
 	mtx1.lock();
 	std::cout << "============= CLIENT PART CATAN GAME ===================  " << std::endl;
-	std::cout << "Try to connect addr =  " << addr_connect << std::endl;
+	std::cout << "Connect to server addr =  " << addr_connect << std::endl;
 	mtx1.unlock();
 
 	SOCKADDR_IN addr;
@@ -1181,7 +1260,7 @@ int init_WSA(void)
 	return 0;
 }
 
-//==============================================================================================  CONNECT
+//==============================================================================================        CONNECT
 //     Функция потока подключений серверная часть =
 //==============================================================================================
 void Check_Connections(void)
@@ -1231,17 +1310,61 @@ void Check_Connections(void)
 
 	for (i = 0; i < 10; i++)
 	{
-		std::cout << " SERVER: Wait for next player \n  " << std::endl;
+		std::cout << " SERVER: Wait for getting DATA \n  " << std::endl;
 		newConnection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr);     //не возвращает управление пока не дождется запроса на подключение
-		if (newConnection == 0)  {	std::cout << "ERROR newConnection" << std::endl;  }
+		if (newConnection == 0) 
+		         {	
+			     std::cout << "ERROR newConnection" << std::endl;
+				 i--;
+				 continue;
+		         }
 		else
 		 {
-		  if (Connections[0] == 0 && Connections[1] == 0 && Connections[2] == 0 && Connections[3] == 0)
+			//если в игре 4 человека
+			if (Connections[0] != 0 && Connections[1] != 0 && Connections[2] != 0 && Connections[3] != 0)
+			   {
+				std::cout << " SERVER: Максимальное кол-во игроков (4) в игре \n  " << std::endl;
+				std::cout << "New Connection ABORT " << std::endl;
+
+				strcpy_s(msg, "4 players active, TRY to Connect Later");
+				send(newConnection, msg, sizeof(msg), NULL);
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_PLAYER].c_str());
+				_itoa(0, &msg[50], 10);              //выдан номер 0
+				send(newConnection, msg, sizeof(msg), NULL);
+				Sleep(50);
+				closesocket(newConnection);
+				i--;
+				continue;
+			   }
+
+		    //если нет подключенных
+			if (Connections[0] == 0 && Connections[1] == 0 && Connections[2] == 0 && Connections[3] == 0)
 			    {
 				std::cout << "============== First player =============== " << std::endl;
 				Counter = 0;  //сбрасываем счетчик подключений
 				i = 0;        //сбрасываем начало чикла подключений
+				for (int pl = 1; pl < 5; pl++)  player[pl].active = 0;
+				Game_Step.current_step = 0;
 			    }
+
+			//если идет игра , то нового игрока не подключаем
+			if(Game_Step.current_step > 0)
+			   {
+				std::cout << "New Connection ABORT " << std::endl;
+
+				strcpy_s(msg, "CATAN GAME in PROGRESS, TRY to Connect Later");
+				send(newConnection, msg, sizeof(msg), NULL);
+
+				strcpy_s(msg, Map_Command[NET_COMMAND::SET_N_PLAYER].c_str());
+				_itoa(0, &msg[50], 10);              //выдан номер 0
+				send(newConnection, msg, sizeof(msg), NULL);
+				Sleep(50);
+
+				closesocket(newConnection);
+				i--;
+				continue;
+			   }
 
 			mtx1.lock();
 			std::cout << "SERVER:  OK Player  N= " << (Counter+1) << "   Connected" << std::endl;
@@ -1249,12 +1372,9 @@ void Check_Connections(void)
 
 			std::cout << "About player =============================== " << std::endl;
 			std::cout << "Port =  " << addr.sin_port << std::endl;
-			//std::cout << "Addr =  " << addr.sin_addr.S_un.S_un_b.s_b1 << std::endl;
-			//std::cout << "Addr =  " << addr.sin_addr.S_un.S_un_b.s_b2 << std::endl;
-			//std::cout << "Addr =  " << addr.sin_addr.S_un.S_un_b.s_b3 << std::endl;
-			//std::cout << "Addr =  " << addr.sin_addr.S_un.S_un_b.s_b4 << std::endl;
-
 			printf("Подключился  %s\n", inet_ntoa(addr.sin_addr));
+			//запоминаем адрес игрока для возможного переподключения при дизконнекте
+			strcpy(str_Player_addr[Counter + 1],inet_ntoa(addr.sin_addr));
 			std::cout << "============================================ " << std::endl << std::endl;
 
 			//-----------------------------------------------------------------------------------
@@ -1282,7 +1402,6 @@ void Check_Connections(void)
 			   send(newConnection, msg, sizeof(msg), NULL); Sleep(1);
 			   }
 			
-
 			//сообщить о месте расположения разбойников
 			strcpy_s(msg, Map_Command[NET_COMMAND::BANDIT_GECS].c_str());
 			_itoa(bandit_Gecs, &msg[50], 10);       
@@ -1311,13 +1430,13 @@ void Check_Connections(void)
 			//каждому подключенному клиенту создаем поток обработки сообщений сокета
 			CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)ServerClientStreamFunc, (LPVOID)(i), NULL, NULL);
 		}   //else
-	}
+	}   //for
 
-	std::cout << " SERVER: Максимальное кол-во игроков 4 подключилось \n  " << std::endl;
+	
 	std::cout << " SERVER: Поток подключений завершает работу \n  " << std::endl;
 }
 
-//================================= SERVER STREAM FUNCTION ======================================  SERVER NET
+//================================= SERVER STREAM FUNCTION ======================================      SERVER NET CYCLE
 //функция для приема сообщений от клиентов и отправке всем, кроме того от кого оно пришло прислал
 //===============================================================================================
 void ServerClientStreamFunc(int index)
@@ -1469,6 +1588,19 @@ void ServerClientStreamFunc(int index)
 					Send_To_All(msg, sizeof(msg)); Sleep(1);
 
 					InitChange_BANK();
+					//переход самого большого войска    max_army
+					int num_max = 0,num = 0;
+					if (max_army > 0)    //если карточка уже у игрока
+					    {
+						for (auto& elem : develop_CARDS[max_army])	if (elem.status == 1 && elem.type == IMP_TYPE::KNIGHT) num_max++;
+					    }
+					   else max_army = 0;
+					for (int i = 1; i < 5; i++)
+					    {
+						num = 0;
+						for (auto& elem : develop_CARDS[i])	     {  if (elem.status == 1 && elem.type == IMP_TYPE::KNIGHT) num++;   }
+					    if (num > max_army && num >= 3)  max_army = i;
+					    }
 					//переход самого длинного тракта    max_road_owner
 					int way;
 					for(int i = 1;i < 5;i++)    
@@ -1477,7 +1609,7 @@ void ServerClientStreamFunc(int index)
 						if (way > Count_Road_Length(max_road_owner) && way >= 5)  max_road_owner = i;
 					   }
 					if(Count_Road_Length(max_road_owner) < 5) max_road_owner = 0;
-					Send_To_All_Info_Max_Way();
+					Send_To_All_Info_MaxWayArmy();
 					continue;
 				    }
 				if (Game_Step.current_step == 3)
@@ -1891,8 +2023,6 @@ void ServerClientStreamFunc(int index)
 				Send_To_All_Info_Resurs();
 				Send_To_All_Info_Roads();
 
-				//Send_To_All_Info_();     //Фишки городов .....  
-
 				//передача сформированного поля - гексы и номера - остальное клиент сформирует
 				int gecs_num = 0;
 				for (auto& elem : *gecsPtr)
@@ -1934,13 +2064,14 @@ void ServerClientStreamFunc(int index)
 				    }
 
 				Send_To_All_Info_Resurs();
+				Send_To_All_Info_MaxWayArmy();
 				continue;
 			   }
 			
 			if (Command == NET_COMMAND::TEST_GAME)
 			    {
 				Game_Step.current_step = 4;
-				player[1].resurs[1] = 40;  player[1].resurs[2] = 40;  player[1].resurs[3] = 40; player[1].resurs[5] = 40;
+				player[1].resurs[1] = 40;  player[1].resurs[2] = 40;  player[1].resurs[3] = 40; player[1].resurs[4] = 40;  player[1].resurs[5] = 40;
 				player[2].resurs[1] = 40;  player[2].resurs[2] = 40;  player[2].resurs[3] = 40; player[2].resurs[5] = 40;
 				nodePtr->at(5).owner = 1; nodePtr->at(5).object = TOWN;
 				nodePtr->at(25).owner = 1; nodePtr->at(25).object = TOWN;
@@ -2051,11 +2182,12 @@ void Send_To_All_Info_Change_Area(int pl)
 //=======================================================================
 //отправка сообщения о карточке самого длинного пути
 //=======================================================================
-void Send_To_All_Info_Max_Way()
+void Send_To_All_Info_MaxWayArmy()
 {
 char msg[256];
-	strcpy_s(msg, Map_Command[NET_COMMAND::MAX_WAY_OWNER].c_str());
+	strcpy_s(msg, Map_Command[NET_COMMAND::MAX_WAY_ARMY_OWNER].c_str());
 	_itoa(max_road_owner, &msg[50], 10);
+	_itoa(max_army, &msg[54], 10);
 	Send_To_All(msg, sizeof(msg));
 }
 

@@ -136,7 +136,7 @@ int Count_Road_Length(int pl)
 	WAYS.clear();
 
 	//цикл по узлам катана
-	for (int node = 0; node < nodePtr->size(); node++)
+	for (size_t node = 0; node < nodePtr->size(); node++)
 	{
 	road.clear();      //чистый вектор дороги
 	WAYS_TMP.clear();  //чистый стек незавершенных ответвлений
@@ -172,26 +172,27 @@ int Count_Road_Length(int pl)
 		while (WAYS_TMP.size() > 0)
 		{
 			//контроль ошибок в функции подсчета длины дороги
-			if (WAYS.size() > 120)    { 	std::cout << " WAY.size() > 120  " << std::endl;	return 0;   }
-			if (WAYS_TMP.size() > 30)   {	std::cout << " WAYS_TMP.size() > 30  " << std::endl;  return 0;    }
+			//if (WAYS.size() > 120)    { 	std::cout << " WAY.size() > 120  " << std::endl;	return 0;   }
+			//if (WAYS_TMP.size() > 30)   {	std::cout << " WAYS_TMP.size() > 30  " << std::endl;  return 0;    }
 			if (road.size() > 16)
 			   { 
 				std::cout << " road.size() > 16  " << " and TMP.size() =  " << WAYS_TMP.size() << std::endl;
 				for (auto node : road) std::cout << " | " << node;
 				std::cout << " | " << std::endl;
 
-				std::cout << " ======== TMP vector  =============== " << WAYS.size() << std::endl;
+				std::cout << " ======== TMP road vector  =============== " << WAYS_TMP.size() << std::endl;
 					for (auto rrr : WAYS_TMP)
-					{
-						for (auto node : rrr)  std::cout << " | " << node;
-						std::cout << " | " << std::endl;
-					}
+					  {
+				      for (auto node : rrr)  std::cout << " | " << node;
+					  std::cout << " | " << std::endl;
+					  }
 			    return 0;
 			   }
 
 		road.clear();
 		//считать последнюю незавершенную дорогу    ( WAYS_TMP - вектор из векторов )
-	    for (auto elem : WAYS_TMP.at(WAYS_TMP.size() - 1))   road.push_back(elem);     //поэлементно запихиваем в дорогу
+	    //for (auto elem : WAYS_TMP.at(WAYS_TMP.size() - 1))   road.push_back(elem);     //поэлементно запихиваем в дорогу
+		for (auto elem : WAYS_TMP.back())   road.push_back(elem);     //поэлементно запихиваем в дорогу
 		WAYS_TMP.pop_back();   //удаляем прочитанную дорогу
 
 	     //проверка для дорог длиной от 6 элементов - если последний узел уже встречается в массиве,
@@ -199,10 +200,9 @@ int Count_Road_Length(int pl)
 		if (road.size() > 6)
 		    {
 			flag = false;
-			auto last = (road.at(road.size() - 1));
 			for (int i = 0; i < road.size() - 1; i++)
 			   {	
-				if (last == road.at(i)) 
+				if (road.back() == road.at(i))
 				        {
 					    if (max_way < road.size() - 1)   max_way = road.size() - 1;
 					    //WAYS.push_back(road); 
