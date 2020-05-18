@@ -7,18 +7,47 @@
 
 #include <winsock2.h>
 
+//server  send  ====================================================
+void Set_Player_Number(int num);     //new style
+void Send_Field_GECS(int pl);        //new style
+void Send_Bandit_GECS(int pl);       //new style
+void Send_Connected_Players(int pl); //new style
+void Set_Game_Step(int pl);          //new style
+void Set_New_Move(int pl);           //new style
+void Send_Info_Nodes(int pl);        //new style
+void Send_Info_Roads(int pl);        //new style
+void Send_Bank_Resurs(int pl);       //new style
+void Send_Player_CARDS(int pl, int nplayer);   //new style
+void Send_Player_Objects(int pl, int nplayer); //new style
+void Info_Dise_7(int pl, int npl);             //new style
+void Info_Play_Develop_Card(int pl, int npl, int type);      //new style
+void Info_Player_Last_Dice(int pl, int npl, int dice);       //new style
+void Send_To_All_Info_MaxWayArmy(int pl);                    //new style
+void Send_Info_Change_Area(int pl, int npl);          //new style
+void Send_Develop_CARDS(int pl, int npl);      //new style
+void Send_Improve_CARDS(int pl);               //new style
+void Send_To_All_Info_Resurs();                //new style
+void Send_Info_Change(int pl, int s);          //new style
+
+//====================================================================
+
+void Ask_Send_Arrays();             //new style
+void Send_roads();                  //new style
+void Send_nodes();                  //new style
+void Info_Main_Bank();              //new style
+void Player_Objects_To_Server();    //new style
+void Info_Player_Resurs();          //new style 
+void Say_Roll_Start_Dice();         //new style 
+void Say_Roll_2Dice();              //new style
+void Say_Move_Over();               //new style
+void Ask_Send_Resurs();             //new style
+void Say_Move_Banditos();           //new style
+
+//--------------------------------------------------------------------
+//  use  old  packets
 void Ask_Reset_Game();
 void Test_Game();
-int Start_Server_CATAN(void);
-int Init_Client_CATAN(void);
-int  init_WSA(void);
-void Check_Connections(void);
-int  ClientChart();
-void ClientHandler(int);
-void ServerClientStreamFunc(int);
 
-void Ask_Send_Arrays();
-void Ask_Send_Resurs();
 void Ask_Send_Objects();
 int  Count_Num_players();
 void InitChange_BANK();
@@ -27,8 +56,6 @@ bool AskChangeWithBank(RESURS);
 bool AskBuyImproveCARD();
 void AskSendCardsToBank();
 void Info_Change_Bank();
-void Info_Main_Bank();
-void Info_Player_Resurs();
 void AskTakeRandomCardFromPlayer(int);
 void AskPlayDevelopCard(IMP_TYPE);
 void Ask_Send_Resurs_To_Server();
@@ -38,24 +65,7 @@ void AskToDeleteOffer(int );
 void AskToAcceptOffer(int);
 
 void Say_Start();
-void Say_Move_Over();
-void Say_Roll_1Dice();
-void Say_Roll_2Dice();
-void Say_Move_Banditos();
 
-void Send_To_All(char* , int);
-void Send_To_All_Info_Resurs();
-void Send_To_All_Player_CARDS(int);
-void Send_To_All_Info_Nodes();
-void Send_To_All_Info_Roads();
-void Send_To_All_Info_Change_Area(int);  //банк обмена
-void Send_To_All_Info_MaxWayArmy();
-void Send_To_All_Develop_CARDS(int);
-void Send_To_All_Improve_CARDS();
-void Send_To_All_Info_Change(int);   //сделка по обмену
-
-void Send_roads();
-void Send_nodes();
 
 
 #endif

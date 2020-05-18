@@ -40,8 +40,6 @@ int SetFirstPlayer()
 {
 	int pl, i;
 
-  //std::cout << "SetFirstPlayer  назначает первого ходящего " << std::endl;
-
   //pl = 1 так как при старте игры первый подключенный бросает кубик первым
   for (pl = 1,i = 1; i < 5; i++)
 	{

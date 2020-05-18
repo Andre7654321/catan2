@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "CatanNet.h"
+#include "Cat_NET.h"
 #include "CatanField.h"
 #include "Catan_View.h"
 #include "Catan_Step.h"
@@ -22,7 +23,7 @@ std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 
 std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
-std::vector<IMP_CARD> develop_CARDS[5]; //карты развития игроков
+std::vector<IMP_CARD> develop_CARDS[7]; //карты развития игроков
 
 bool flag_draw_gecs = true;
 bool flag_draw_node = true;
@@ -41,9 +42,11 @@ extern sf::Sprite cube_sprite;
 extern sf::Sprite bandit_sprite;
 extern sf::Sprite sprite_chBank;
 extern sf::Sprite sprite_chBank_clear;
-extern sf::Sprite sprite_take_card[5];
-extern sf::Sprite sprite_change[5];
-extern sf::Sprite Active_develop_card[5];    //спрайты карт развития
+extern sf::Sprite sprite_take_card[7];
+extern sf::Sprite sprite_change[7];
+extern sf::Sprite Active_develop_card[7];    //спрайты карт развития
+extern sf::Sprite sprite_move_over;
+extern sf::Sprite sprite_start;
 
 extern int bandit_Gecs;
 extern std::string resurs_name[10];     //имена ресурсов строкой для вывода в консоль
@@ -54,11 +57,11 @@ int max_army = 0;        //владелец карточки самое большое войско
 int player_num = 0;      //номер присваемый игроку   0 - для сервера
 int CARD_Bank[10];       //структура содержащая карточки ресурсов не принадлежание игрокам
 const int MAXPLAYERS = 4;
-PLAYER player[5];       //резервируем массив под максимальное число игроков + server
-int limit_7[5];         //для хранения числа карт, до которого надо скинуть лишнее при броске 7
+PLAYER player[7];       //резервируем массив под максимальное число игроков + server
+int limit_7[7];         //для хранения числа карт, до которого надо скинуть лишнее при броске 7
 
 //область обмена ресурсами
-int ChangeBANK[5][10] = {0};
+int ChangeBANK[7][10] = {0};
 CHANGE Change[12];
 extern sf::Sprite sprite_Offer[12];
 
@@ -69,6 +72,7 @@ int Allow_Develop_card = 0;    //разрешение сыграть карту развития
 
 int Draw_Big_Develop_CARD = -1;
 extern int Big_Message;
+bool flag_get_cubic_result = false;
 
 bool village_ismove = false;    //перетаскивание деревни
 bool town_ismove = false;       //перетаскивание города
@@ -90,8 +94,8 @@ int main()
    std::vector<GECS> Gecs;
    std::vector<NODE> Field;
    std::vector<ROAD> Roads;
-   gecsPtr = &Gecs;   nodePtr = &Field;   roadPtr = &Roads;
    Init_CATAN_Field(&Gecs, &Field, &Roads);
+   gecsPtr = &Gecs;   nodePtr = &Field;   roadPtr = &Roads;
    //--------------------------------------------------------------------
 
    Game_Step.current_step          = 0;           //начало игры
@@ -181,6 +185,7 @@ int main()
                  //тестовый переход по F10   на 4 шаг для отладки
                 if (event.key.code == sf::Keyboard::F10 && player_num > 0)
                 {
+                    std::cout << " Pressed F10  TEST "  << std::endl;
                     //добавляет ресурсов, ставит 1 и 2 игроку 2 города, позволяет нырнуть сразу на 4 шаг
                     Test_Game();
                 }
@@ -204,9 +209,9 @@ int main()
                 {
                     player[player_num].flag_allow_change = 0;   //запрет обменов
                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0)
-                    {
+                        {
                         Say_Move_Over();  Game_Step.current_active_player = 0;
-                    }
+                       }
                     if (st == 3 || st == 2)
                     {
                         if (Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)
@@ -214,7 +219,7 @@ int main()
                             Say_Move_Over();  Game_Step.current_active_player = 0;
                         }
                     }
-                    if (st == 1) { Say_Roll_1Dice();   Game_Step.current_active_player = 0; }
+                    if (st == 1) { Say_Roll_Start_Dice();   Game_Step.current_active_player = 0; }
                     if (st == 0)  Say_Start();
                 }
 
@@ -288,6 +293,21 @@ int main()
             //если нажата клавиша мыши левая  
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
             {
+                //start
+                if (sprite_start.getGlobalBounds().contains(pixelPos.x, pixelPos.y) && player_num == Game_Step.current_active_player && st == 0)
+                    {
+                    Say_Start();  Game_Step.current_active_player = 1;
+                    Sleep(100);
+                    }
+
+                //окончание хода
+                if (sprite_move_over.getGlobalBounds().contains(pixelPos.x, pixelPos.y) && player_num == Game_Step.current_active_player)
+                    {
+                    Say_Move_Over();
+                    Game_Step.current_active_player = 0;
+                    Sleep(30);
+                    }
+
                 //спрайт заявки на обмен с игроком - принять заявку к обмену
                 for (int s = 0; s < 12; s++)
                 {
@@ -442,12 +462,11 @@ int main()
                 }
                 
                 //кубик
-               if (cube_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y))
+               if (cube_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y) && player_num == Game_Step.current_active_player)
                 {
-                   if (player_num != Game_Step.current_active_player)  continue;  //только активный игрок 
-                   //std::cout << "  Dice selected  " << std::endl;
-                   if (st == 4 && Game_Step.step[st].roll_2_dice == 1)   {  Say_Roll_2Dice();   Game_Step.step[st].roll_2_dice = 0;    }
-                   if (st == 1 ) { Say_Roll_1Dice(); }
+                 if (st == 4 && Game_Step.step[st].roll_2_dice == 1 && Game_Step.step[st].flag_bandit == 0)
+                                   {  Say_Roll_2Dice();   Game_Step.step[st].roll_2_dice = 0;    }
+                 if (st == 1) {  Say_Roll_Start_Dice();   Game_Step.current_active_player = 0; }
                 }
 
                 //цикл по узлам
@@ -693,12 +712,25 @@ int main()
 
             Draw_Step_Info(&window);
 
+            //спрайт окончания хода игрока
+            if (player_num == Game_Step.current_active_player)
+                {
+                int flag = false;
+                if((st == 2 || st == 3) && Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)  flag = true;
+                if(st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0 && flag_get_cubic_result == true) flag = true;
+                //если разрешение на забор карты от игрока после бандита
+                for (int i = 1; i < 7; i++) { if(player[i].flag_allow_get_card == 1) flag = false; }
+                if(flag) Move_Over_Logo(&window);
+                    else sprite_move_over.setPosition(1200,1200);
+                }
+
             if (player_num == 1 && Count_Num_players() >= 2   &&  st == 0)  Draw_Start(&window);
 
             if (player_num == Game_Step.current_active_player && st == 1)   Draw_Cubic(&window);
 
             if (player_num == Game_Step.current_active_player && st == 4)
                  if (Game_Step.step[st].roll_2_dice == 1)    Draw_Cubic(&window);
+            
 
             //если правая клавиша мышки выбрала карту развития
             if(Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 1.6f, 0);

@@ -59,8 +59,8 @@ struct CHANGE
  int status = 0;
  int from_pl = 0;
  int to_pl = 0;
- int offer_num[6];
- int need_num[6];
+ int offer_num[6]  {0};
+ int need_num[6]  {0};
 };
 
 //структура банка ресурсов - где хранятся карточки ресурсов

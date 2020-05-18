@@ -26,12 +26,13 @@ void Draw_Change_Offers_ForActive(sf::RenderWindow*);
 void DrawPlayer(sf::RenderWindow*);
 void Draw_Step_Info(sf::RenderWindow*);
 
+void Move_Over_Logo(sf::RenderWindow* win);
 void Draw_Start(sf::RenderWindow*);
 void Draw_Cubic(sf::RenderWindow*);
 void DrawBandit(sf::RenderWindow* , std::vector<GECS>*);
 void DrawBanditOnCoord(sf::RenderWindow* , int, int, float);
-void Draw_MaxWay(sf::RenderWindow*, int, int);
-void Draw_MaxArmy(sf::RenderWindow* win, int x, int y);
+void Draw_MaxWay(sf::RenderWindow*, int, int, float scale);
+void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale);
 
 void Big_Message_Imp_Card(sf::RenderWindow* ,int);
 

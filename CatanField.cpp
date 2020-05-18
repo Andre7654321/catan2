@@ -6,6 +6,7 @@
 #include <string.h>
 #include "CatanField.h"
 #include "Catan_View.h"
+#include "Catan_Count.h"
 
 
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
@@ -22,7 +23,6 @@ extern std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
 extern int bandit_Gecs;
 extern int max_road_owner;
 extern int max_army;
-
 
 //размер 15 на 20 - универсальный для большого поля
 int CATAN19[15][20] =
@@ -126,7 +126,7 @@ int TakeRandomCardFromPl(int pl_donor)
        */
     while (type == 0)
     {
-        i = rand() % 5 + 1;
+        i = Random_Number(1, 5);
         if (player[pl_donor].resurs[i] > 0)  type = i;
     }
 
@@ -342,7 +342,7 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
 
  int i, ii;
 
- int coner = rand() % 6;   //рандомно выбирается стартовый угол обхода для присвоения номера
+ int coner = Random_Number(0, 5);   //рандомно выбирается стартовый угол обхода для присвоения номера
  //std::cout << "  Присвоение номеров с угла   " << coner << std::endl;
 
  int position;
@@ -369,7 +369,9 @@ void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
     for (i = 0; i < 19; i++)
     {
         //получить случайное число
-        ii = rand() % 19;
+        ii = Random_Number(0,18);
+        //std::cout << "  step  \t " << i << " \trandom =  " << ii << "   \n";
+
         while (true)   //цикл пока не попадем в свободное место под гекс
         {
            if (PtrGecs->at(ii).type == RESURS::EMPTY)
@@ -427,8 +429,6 @@ bool isVillageNear(int index)
 //==================================================================================================
 int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std::vector<ROAD>* PtrRoad)
 {
-
-    srand(time(0)); // автоматическая рандомизация
 
  //инициализация сетки расположения гексов ---------------------------------------------------------
     for (int ii = 0; ii < 15; ii++)
@@ -552,7 +552,7 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
     //перетасовать карты развития
     for (int i = 0; i < 500; i++)
         {
-        pos = rand() % improve_CARDS.size();
+        pos = Random_Number(0, improve_CARDS.size()-1);
         //прочитать карту
         ttt.status = improve_CARDS.at(pos).status;
         ttt.type = improve_CARDS.at(pos).type;
@@ -570,6 +570,7 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
    CARD_Bank[(int)RESURS::BRICKS] = 19;
 
    max_road_owner = 0;
+   max_army = 0;
 
     return 1;
 }
