@@ -15,6 +15,8 @@ void Send_Connected_Players(int pl); //new style
 void Set_Game_Step(int pl);          //new style
 void Set_New_Move(int pl);           //new style
 void Send_Info_Nodes(int pl);        //new style
+void Send_Info_Nodes_Zip(int pl);    //new style
+
 void Send_Info_Roads(int pl);        //new style
 void Send_Bank_Resurs(int pl);       //new style
 void Send_Player_CARDS(int pl, int nplayer);   //new style
@@ -42,29 +44,35 @@ void Say_Roll_2Dice();              //new style
 void Say_Move_Over();               //new style
 void Ask_Send_Resurs();             //new style
 void Say_Move_Banditos();           //new style
+void Info_Change_Bank();            //new style
+void Ask_Send_Objects();            //new style
+bool AskChangeWithBank(RESURS);     //new style
+void AskSendCardsToBank();          //new style
+void Say_Start();                   //new style
+void AskTakeRandomCardFromPlayer(int);  //new style
+bool AskBuyImproveCARD();           //new style
+void AskPlayDevelopCard(IMP_TYPE);  //new style
+void Ask_Reset_Game();              //new style
+void Test_Game();                   //new style
+void AskChangeWithPlayer(int);      //new style
+void AskToDeleteOffer(int);
+void AskToAcceptOffer(int);
 
 //--------------------------------------------------------------------
 //  use  old  packets
-void Ask_Reset_Game();
-void Test_Game();
 
-void Ask_Send_Objects();
 int  Count_Num_players();
 void InitChange_BANK();
 void InitChange_BANK(int);
-bool AskChangeWithBank(RESURS);
-bool AskBuyImproveCARD();
-void AskSendCardsToBank();
-void Info_Change_Bank();
-void AskTakeRandomCardFromPlayer(int);
-void AskPlayDevelopCard(IMP_TYPE);
+
+
 void Ask_Send_Resurs_To_Server();
 void Ask_Server_To_Take_Resurs_From_All(RESURS);
-void AskChangeWithPlayer(int);
-void AskToDeleteOffer(int );
-void AskToAcceptOffer(int);
 
-void Say_Start();
+
+
+
+
 
 
 

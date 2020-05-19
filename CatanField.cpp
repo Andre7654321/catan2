@@ -118,16 +118,10 @@ int TakeRandomCardFromPl(int pl_donor)
    int num = getPlayerNumCardResurs(pl_donor);
    if (num == 0)  return 0;
 
-   /*
-    for (int i = 1; i < 6; i++)
-       {
-        if (player[pl_donor].resurs[i] > 0)  type = i;
-       }
-       */
     while (type == 0)
     {
-        i = Random_Number(1, 5);
-        if (player[pl_donor].resurs[i] > 0)  type = i;
+     i = Random_Number(1, 5);
+     if(player[pl_donor].resurs[i] > 0)  type = i;
     }
 
 return type;
@@ -534,9 +528,10 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
     improve_CARDS.clear();
     int pos;
     IMP_CARD ttt;
-    ttt.status = -1;    ttt.type = IMP_TYPE::KNIGHT;
-    for (pos = 0; pos < 14; pos++)  improve_CARDS.insert(improve_CARDS.begin(), ttt);
-    ttt.status = 0;
+    //все карты имеют статус неактивных
+    ttt.status = -1;
+    ttt.type = IMP_TYPE::KNIGHT;
+    for (pos = 0; pos < 14; pos++)  improve_CARDS.insert(improve_CARDS.begin(), ttt);    
     ttt.type = IMP_TYPE::POINT1;
     for (pos = 0; pos < 5; pos++)  improve_CARDS.insert(improve_CARDS.begin(), ttt);
     ttt.type = IMP_TYPE::ROAD2;

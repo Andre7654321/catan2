@@ -24,7 +24,7 @@ extern SOCKET Connection;   //подключение клиента
 //extern char addr_connect[20] = "192.168.2.39";
 
 //для сервера
-extern SOCKET Connections[7];    //6 + server подключения игроков
+extern SOCKET Connections[10];    //6 + server подключения игроков
 extern char str_Player_addr[7][20];
 //extern int Counter = 0;           //счетчик подключений
 
@@ -45,6 +45,9 @@ extern int Play_two_resurs;    //флаг игры карты развития 2 ресурса
 extern int Play_ONE_resurs;
 extern int Allow_Develop_card;
 
+extern bool flag_cubic_was_used;   //сервер запоминает что текущий игрок уже бросал кубик
+extern bool flag_develop_card_used;  //сервер запоминает что карта развития уже игралась в этом ходу
+
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
@@ -64,13 +67,191 @@ extern std::chrono::time_point<std::chrono::steady_clock>  start_Big_Message;
 //область обмена ресурсами
 extern int ChangeBANK[7][10];
 
+
+//=======================================================
+// Запрос на выполнение обмена по заявке
+//=======================================================
+void AskToAcceptOffer(int s)
+{
+CATAN_CLIENT_Command(NET_COMMAND::ASK_ACCEPT_OFFER, (char*)&s, sizeof(int));
+return;
+}
+
+//=======================================================
+// Запрос на отмену заявки на обмен с игроком
+//=======================================================
+void AskToDeleteOffer(int s)
+{
+CATAN_CLIENT_Command(NET_COMMAND::ASK_DELETE_OFFER, (char*)&s, sizeof(int));
+return;
+}
+
+//=======================================================
+// Запрос на обмен картами ресурсов с игроком
+//=======================================================
+void AskChangeWithPlayer(int pl)
+{
+    //все обмены с игроками - до строительства, потому инфо по объектам не отправляем
+	//Info_Player_Resurs();
+	//на сервер надо передать номер игрока  с кем обмен 
+	//а карточки находятся в банках обмена - передавать не надо
+
+	CATAN_CLIENT_Command(NET_COMMAND::SET_CHANGE_OFFER, (char*)&pl, sizeof(int));
+
+	return;
+}
+
+//=======================================================
+// запрос серверу перезапустить игру
+//=======================================================
+void Test_Game()
+{
+std::cout << " ASK FOR TEST MODE STEP 4 " << std::endl;
+CATAN_CLIENT_Command(NET_COMMAND::TEST_GAME, nullptr, NULL);
+return;
+}
+
+//=======================================================
+// запрос серверу перезапустить игру
+//=======================================================
+void Ask_Reset_Game()
+{
+CATAN_CLIENT_Command(NET_COMMAND::ASK_RESET_GAME,nullptr,NULL);
+return;
+}
+
+//=======================================================
+// Запрос забрать у игроков ресурс
+//=======================================================
+void Ask_Server_To_Take_Resurs_From_All(RESURS type)
+{
+//обновляем серверу свои ресурсы
+Info_Player_Resurs();
+
+//std::cout << " запрос серверу забрать все   " << resurs_name[(int)type] << std::endl;
+CATAN_CLIENT_Command(NET_COMMAND::ASK_GET_RESURS_FROM_ALL, (char*)&type, sizeof(int));
+return;
+}
+
+//=======================================================
+// Запрос сыграть карту развития
+//=======================================================
+void AskPlayDevelopCard(IMP_TYPE type)
+{
+	Send_nodes();	Send_roads();
+	Info_Player_Resurs();   //поменялось при строительстве
+	Info_Main_Bank();       //поменялось при строительстве
+	//деревни, города .. игрока
+	Player_Objects_To_Server();
+
+	CATAN_CLIENT_Command(NET_COMMAND::ASK_PLAY_DEVELOP_CARD, (char*)&type, sizeof(int));
+	return;
+}
+
+//=======================================================
+//  запрос покупки карты развития
+//=======================================================
+bool AskBuyImproveCARD()
+{ 
+	Send_nodes();	Send_roads();
+	Info_Player_Resurs();   //поменялось при строительстве
+	Info_Main_Bank();       //поменялось при строительстве
+	//деревни, города .. игрока
+	Player_Objects_To_Server();
+
+	CATAN_CLIENT_Command(NET_COMMAND::ASK_BUY_IMPROVE_CARD,nullptr,NULL);
+	//в ответ сервер должен обновить банк ресурсов и ресурсы игрока
+	return true;
+}
+
+//=======================================================
+// Запрос забрать карту у игрока PL
+//=======================================================
+void AskTakeRandomCardFromPlayer(int pl)
+{
+CATAN_CLIENT_Command(NET_COMMAND::TAKE_CARD_FROM_PLAYER, (char*)&pl, sizeof(int));
+return;
+}
+
+//========================================================
+// посылает сообщение серверу о старте игры
+//========================================================
+void Say_Start()
+{
+	if (player_num != 1) return;
+	CATAN_CLIENT_Command(NET_COMMAND::SAY_GAME_START, nullptr, NULL);
+	return;
+}
+
+//=======================================================
+//  запрос на сброс карт в банк (обработка 7)
+//=======================================================
+void AskSendCardsToBank()
+{
+//переслать на сервер коменду сбросить банк обмена в общий банк
+CATAN_CLIENT_Command(NET_COMMAND::SEND_CARDS_TO_BANK, nullptr, NULL);
+return;
+}
+
+//=======================================================
+//  запрос обмена ресурсов с банком
+//=======================================================
+bool AskChangeWithBank(RESURS CARD_type)
+{
+	int i;
+	int need_card;
+
+	//проверить есть ли в банке обмена нужное количество одинаковых карточек
+	bool flag = false;
+	for (i = 1; i < 10; i++)
+	{
+		need_card = 4;
+		if (bonus31(player_num))      need_card = 3;
+		if (bonus21(player_num, i))   need_card = 2;
+		if (ChangeBANK[player_num][i] >= need_card)  flag = true;
+	}
+	if (flag == false) { std::cout << " В банке нехватает ресурсов для обмена " << std::endl;  return false; }
+
+	//информируем банк о завершенных постройках в узлах
+	//так как бонус по картам мог появиться в процессе хода
+	Send_nodes();	Send_roads();
+	Info_Player_Resurs();   //поменялось при строительстве
+	Info_Main_Bank();       //поменялось при строительстве
+	//деревни, города .. игрока
+	Player_Objects_To_Server();
+
+	//переслать на сервер требуемый от банка ресурс
+	CATAN_CLIENT_Command(NET_COMMAND::ASK_CHANGE_WITH_BANK, (char*)&CARD_type,sizeof(int));
+	return true;
+}
+
+//========================================================================
+// вызывается при отмене части хода для восстановления состояния
+// запрос серверу на пересылку числа городов, деревень, дорог, 
+//========================================================================
+void Ask_Send_Objects()
+{
+CATAN_CLIENT_Command(NET_COMMAND::ASK_PLAYER_OBJECTS,nullptr,NULL);
+return;
+}
+
+//=======================================================
+//  сообщение серверу об изменении в банке обмена
+//=======================================================
+void Info_Change_Bank()
+{
+//переслать на сервер свой обменный банк
+CATAN_CLIENT_Command(NET_COMMAND::INFO_CHANGE_BANK, (char*)&ChangeBANK[player_num][0], 10* sizeof(int));
+return;
+}
+
 //========================================================
 // посылает сообщение серверу о новом месте разбойников
 //========================================================
 void Say_Move_Banditos()
 {
-	CATAN_CLIENT_Command(NET_COMMAND::BANDIT_GECS, (char*)&bandit_Gecs, sizeof(int));
-	return;
+CATAN_CLIENT_Command(NET_COMMAND::BANDIT_GECS, (char*)&bandit_Gecs, sizeof(int));
+return;
 }
 
 //========================================================================
@@ -79,8 +260,6 @@ void Say_Move_Banditos()
 //========================================================================
 void Ask_Send_Resurs()
 {
-	char msg[256];
-
 	CATAN_CLIENT_Command(NET_COMMAND::ASK_BANK_RESURS,nullptr,NULL);
 	CATAN_CLIENT_Command(NET_COMMAND::ASK_PLAYER_RESURS, nullptr, NULL);
 }
@@ -218,7 +397,6 @@ void Send_nodes()
 	return;
 }
 
-
 //========================================================
 // запрос на пересылку от сервера дорог и узлов
 //========================================================
@@ -238,7 +416,7 @@ char buff[sizeof(CHANGE) + sizeof(int) + 10];
 int* IntPtr;
 IntPtr = (int*)buff;
 
-    if (s < 0 || s >= 12) { Beep(900, 1000);  return; }
+    if (s < 0 || s >= 12)   { Beep(900, 1000);  return; }
     *IntPtr = s;	 IntPtr++;   //номер сделки                             
 	memcpy(IntPtr, &Change[s], sizeof(CHANGE)); 
 
@@ -363,11 +541,10 @@ void Info_Play_Develop_Card(int pl,int npl, int type)
 {
 	char buff[2 * sizeof(int)];
 	int* IntPtr;
-
+	
 	IntPtr = (int*)buff;
 	*IntPtr = npl;	IntPtr++;
 	*IntPtr = type;	
-
 	CATAN_SERVER_Command(NET_COMMAND::PLAY_DEVELOP_CARD, buff, 2*sizeof(int), pl);
 }
 
@@ -426,7 +603,15 @@ void Send_Bank_Resurs(int pl)
 //=======================================================
 void Set_New_Move(int pl)
 {
-  CATAN_SERVER_Command(NET_COMMAND::SET_N_ACTIVE_PLAYER, (char*)&Game_Step.current_active_player, sizeof(int), pl);
+	char buff[3 * sizeof(int)];
+	int* IntPtr;
+	IntPtr = (int*)buff;
+
+	*IntPtr = Game_Step.current_active_player;	IntPtr++;
+	*IntPtr = flag_cubic_was_used;	IntPtr++;
+	*IntPtr = flag_develop_card_used;
+
+  CATAN_SERVER_Command(NET_COMMAND::SET_N_ACTIVE_PLAYER, (char*)&buff, 3 * sizeof(int), pl);
   return;
 }
 
@@ -509,6 +694,39 @@ void Send_Info_Nodes(int pl)
 	return;
 }
 
+//=======================================================================
+// отправка сообщения городах и их владельцах от сервера игрокам
+// в сокращенном виде - только заполненые узлы- 2-3 кратная экономия трафика
+//=======================================================================
+void Send_Info_Nodes_Zip(int pl)
+{
+	//по 2 int значения на node
+	int max_size = (*nodePtr).size() * sizeof(int) * 3;     //max_size
+	int size = 0;
+	char* buff = new char[max_size];
+
+	int* IntPtr;
+	IntPtr = (int*)buff; IntPtr++;
+
+	for (auto node : *nodePtr) 
+	     {
+		if (node.owner > 0)
+		    {
+			*IntPtr++ = node.number;
+			*IntPtr++ = node.owner;
+			*IntPtr++ = node.object;
+			size += 3;
+		    }
+	     }
+	IntPtr = (int*)buff;
+	*IntPtr = size;    //в первом слове массива количество узлов
+	size = (size + 1) * sizeof(int);
+	CATAN_SERVER_Command(NET_COMMAND::NODE_ARRAY_ZIP, buff, size, pl);
+
+	delete[] buff;
+	return;
+}
+
 //========================================================
 // сервер посылает инфо по дорогам клиентам
 //========================================================
@@ -542,89 +760,6 @@ void Set_Player_Number(int num)
 //=============== old net ******************************************************************* OLD
 
 //=======================================================
-// запрос серверу перезапустить игру
-//=======================================================
-void Ask_Reset_Game()
-{
-	char msg[256];
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_RESET_GAME].c_str());
-	send(Connection, msg, sizeof(msg), NULL);
-	return;
-}
-
-//=======================================================
-// Запрос на выполнение обмена по заявке
-//=======================================================
-void AskToAcceptOffer(int s)
-{
-	char msg[256];
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_ACCEPT_OFFER].c_str());
-	itoa(player_num, &msg[50], 10);    //свой номер
-	itoa(s, &msg[54], 10);            //номер заявки
-	send(Connection, msg, sizeof(msg), NULL);
-	return;
-}
-
-//=======================================================
-// Запрос на отмену заявки на обмен с игроком
-//=======================================================
-void AskToDeleteOffer(int s)
-{
-	char msg[256];
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_DELETE_OFFER].c_str());
-	itoa(player_num, &msg[50], 10);    //свой номер
-	itoa(s, &msg[54], 10);            //номер заявки
-	send(Connection, msg, sizeof(msg), NULL);
-
-	return;
-}
-
-//=======================================================
-// Запрос на обмен картами ресурсов с игроком
-//=======================================================
-void AskChangeWithPlayer(int pl)
-{
-	char msg[256];
-   //std::cout << " ====== Func AskChangeWithPlayer - " << pl << std::endl;
-
-	Info_Player_Resurs();
-
-   //на сервер надо передать структуру сделки обмена - 
-	//кто предлагает и кому
-	//а карточки находятся в банках обмена - передавать не надо
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::SET_CHANGE_OFFER].c_str());
-	itoa(player_num, &msg[50], 10);    //свой номер
-	itoa(pl, &msg[54], 10);            //кому предложение
-	send(Connection, msg, sizeof(msg), NULL);
-
-return;
-}
-
-//=======================================================
-// Запрос забрать у игроков ресурс
-//=======================================================
-void Ask_Server_To_Take_Resurs_From_All(RESURS type)
-{
-	char msg[256];
- 
-	//обновляем серверу свои ресурсы
-	Info_Player_Resurs();
-
-	//std::cout << " запрос серверу забрать все   " << resurs_name[(int)type] << std::endl;
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_GET_RESURS_FROM_ALL].c_str());
-	itoa(player_num, &msg[50], 10);
-	itoa((int)type, &msg[54], 10);
-	send(Connection, msg, sizeof(msg), NULL);
-
-	return;
-}
-
-//=======================================================
 // Запрос переслать состояние ресурсов на сервер
 //=======================================================
 void Ask_Send_Resurs_To_Server()
@@ -636,140 +771,6 @@ void Ask_Send_Resurs_To_Server()
    return;
 }
 
-//=======================================================
-// Запрос сыграть карту развития
-//=======================================================
-void AskPlayDevelopCard(IMP_TYPE type)
-{
-	char msg[256];
-	//std::cout << "  Ask to play card  " << (int)type  << std::endl;
-
-	//переслать на сервер 
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_PLAY_DEVELOP_CARD].c_str());
-	itoa(player_num, &msg[50], 10);
-	itoa((int)type, &msg[54], 10);
-	send(Connection, msg, sizeof(msg), NULL);
-	return;
-}
-
-//=======================================================
-// Запрос забрать карту у игрока PL
-//=======================================================
-void AskTakeRandomCardFromPlayer(int pl)
-{
-	char msg[256];
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::TAKE_CARD_FROM_PLAYER].c_str());
-	itoa(player_num, &msg[50], 10);
-	itoa(pl, &msg[54], 10);
-	send(Connection, msg, sizeof(msg), NULL);
-}
-
-//=======================================================
-//  сообщение серверу об изменении в банке обмена
-//=======================================================
-void Info_Change_Bank()
-{
-	char msg[256];
-
-	//переслать на сервер свой обменный банк
-	strcpy_s(msg, Map_Command[NET_COMMAND::INFO_CHANGE_BANK].c_str());
-	itoa(player_num, &msg[50], 10);
-	memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
-	send(Connection, msg, sizeof(msg), NULL);
-	return;
-}
-
-//=======================================================
-//  запрос на сброс карт в банк (обработка 7)
-//=======================================================
-void AskSendCardsToBank()
-{
-	char msg[256];
-
-	//проверить достаточно ли карт скидывается 
-
-	
-	//переслать на сервер коменду сбросить банк обмена в общий банк
-	strcpy_s(msg, Map_Command[NET_COMMAND::SEND_CARDS_TO_BANK].c_str());
-	itoa(player_num, &msg[50], 10);
-	send(Connection, msg, sizeof(msg), NULL);
-
-	return;
-}
-
-//=======================================================
-//  запрос обмена ресурсов с банком
-//=======================================================
-bool AskChangeWithBank(RESURS CARD_type)
-{
-char msg[256];
-int i;
-int need_card;
-
-
-//проверить есть ли в банке обмена нужное количество одинаковых карточек
-for(i = 1;i < 10;i++)   
-       {
-	   need_card = 4;
-	   if(bonus31(player_num))    need_card = 3;
-	   if(bonus21(player_num, i))   need_card = 2;
-	   if(ChangeBANK[player_num][i] >= need_card)  i = 20;
-       }
-if (i < 20){	std::cout << " В банке нехватает ресурсов для обмена " << std::endl;  return false;  }
-
-//информируем банк о завершенных постройках в узлах
-//так как бонус по картам мог появиться в процессе хода
-Send_nodes();
-Send_roads();
-
-//общий банк карточек - посылаем, так как мог измениться до обмена при постройке
-Info_Main_Bank();
-
-//ресурсы  игрока - посылаем так как могли измениться до обмена при постройке
-Info_Player_Resurs();
-
-//переслать на сервер свой обменный банк и требуемый от банка ресурс
-strcpy_s(msg, Map_Command[NET_COMMAND::ASK_CHANGE_BANK].c_str());
-itoa(player_num, &msg[50], 10);
-itoa((int)CARD_type, &msg[54], 10);
-memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
-send(Connection, msg, sizeof(msg), NULL);
-
-return true;
-}
-
-//=======================================================
-//  запрос покупки карты развития
-//=======================================================
-bool AskBuyImproveCARD()
-{
-char msg[256];
-
-//проверитть наличие карточек для покупки
-//if no   return false;  
-
-//информируем банк о завершенных постройках в узлах
-//так как бонус по картам мог появиться в процессе хода
-Send_nodes();
-Send_roads();
-
-//общий банк карточек - посылаем, так как мог измениться до обмена при постройке
-Info_Main_Bank();
-
-//ресурсы  игрока - посылаем так как могли измениться до обмена при постройке
-Info_Player_Resurs();
-
-//переслать на сервер свой обменный банк и требуемый от банка ресурс
-strcpy_s(msg, Map_Command[NET_COMMAND::ASK_BUY_IMPROVE_CARD].c_str());
-itoa(player_num, &msg[50], 10);
-memcpy(&msg[60], &ChangeBANK[player_num][0], sizeof(int) * 10);
-send(Connection, msg, sizeof(msg), NULL);
-
-//в ответ сервер должен обновить банк ресурсов и ресурсы игрока
-
-return true;
-}
 
 //=======================================================
 //  банк обмена в начале хода должен инициализироваться
@@ -792,38 +793,6 @@ void InitChange_BANK(int i)
 
 	return;
 }
-
-//========================================================================
-// вызывается при отмене части ходя для восстановления состояния
-// запрос серверу на пересылку числа городов, деревень, дорог, 
-// ??  карт развития ??
-//========================================================================
-void Ask_Send_Objects()
-{
-	char msg[256];
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::ASK_PLAYER_OBJECTS].c_str());
-	itoa(player_num, &msg[50], 10);
-	send(Connection, msg, sizeof(msg), NULL);
-
-	return;
-}
-
-//========================================================
-// посылает сообщение серверу о старте игры
-//========================================================
-void Say_Start()
-{
-char msg[256];
-
-	if (player_num != 1) return;
-
-	// сообщение серверу о старте игры
-	strcpy_s(msg, Map_Command[NET_COMMAND::SAY_GAME_START].c_str());
-	send(Connection, msg, sizeof(msg), NULL);	Sleep(10);
-
-return;
-}
 							   
 //========================================================
 // подсчет числа подключившихся игроков
@@ -838,19 +807,6 @@ int Count_Num_players()
 return num;
 }
 
-//=======================================================
-// запрос серверу перезапустить игру
-//=======================================================
-void Test_Game()
-{
-	char msg[256];
-
-	std::cout << " ASK FOR TEST MODE STEP 4 " << std::endl;
-
-	strcpy_s(msg, Map_Command[NET_COMMAND::TEST_GAME].c_str());
-	send(Connection, msg, sizeof(msg), NULL);
-	return;
-}
 
 
 

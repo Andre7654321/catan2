@@ -15,7 +15,7 @@ void DrawDevelopCard(sf::RenderWindow*, int Type, int x, int y, float scale, int
 void Draw_Develop_Cards_Field(sf::RenderWindow*);
 int  getNumDevelopCARD(IMP_TYPE, int);
 
-void DrawRoad(sf::RenderWindow* , int, int, int, float,int );
+void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale, int angle);
 void DrawVillage(sf::RenderWindow*, int, int, int, float);
 void DrawTown(sf::RenderWindow* , int, int, int, float);
 
@@ -35,6 +35,7 @@ void Draw_MaxWay(sf::RenderWindow*, int, int, float scale);
 void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale);
 
 void Big_Message_Imp_Card(sf::RenderWindow* ,int);
+void Game_Message(sf::RenderWindow* win,const char* mess);
 
 int Game_x(int);
 int Game_y(int);

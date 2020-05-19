@@ -73,6 +73,8 @@ int Allow_Develop_card = 0;    //разрешение сыграть карту развития
 int Draw_Big_Develop_CARD = -1;
 extern int Big_Message;
 bool flag_get_cubic_result = false;
+bool flag_cubic_was_used = false;   //сервер запоминает что текущий игрок уже бросал кубик
+bool flag_develop_card_used = false;  //сервер запоминает что карта развития уже игралась в этом ходу
 
 bool village_ismove = false;    //перетаскивание деревни
 bool town_ismove = false;       //перетаскивание города
@@ -85,6 +87,7 @@ float dX, dY;              //компенсация для спрайтов при перетаскивании
 
 //объект класса игры --------------------------------------------------------
 GAME_STEP Game_Step;
+int game_wait_reconnect = 0;     //счетчик сообщений о дизконнекте
 
 int main()
 {
@@ -129,6 +132,17 @@ int main()
     //main cycle ===============================================================================================
     while (window.isOpen())
     {
+        //на 0 шаге не может быть ожидания переподключения
+        if (Game_Step.current_step == 0)
+            {
+            game_wait_reconnect = 0;
+            for (int ii = 0; ii < 7; ii++)  player[ii].wait = false;
+            }
+        //если подключились отпавшие - разблокировать игру
+        bool flag = false;
+        for (int ii = 0; ii < 7; ii++)  if(player[ii].wait)  flag = true;
+        if(flag == false)  game_wait_reconnect = 0;
+
         sf::Vector2i pixelPos = sf::Mouse::getPosition(window);   //забираем коорд курсора
         st = Game_Step.current_step;
 
@@ -173,14 +187,6 @@ int main()
                 if (event.key.code == sf::Keyboard::Numpad6) { flag_draw_node ? flag_draw_node = false : flag_draw_node = true; }
                 if (event.key.code == sf::Keyboard::Numpad8) { flag_draw_road_Net ? flag_draw_road_Net = false : flag_draw_road_Net = true; }
                 if (event.key.code == sf::Keyboard::Numpad2) { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
-
-                //отслеживает факт нажатия R - тест подсчета длины дороги только для сервера
-                /*
-                if (event.key.code == sf::Keyboard::R && player_num == 0)
-                    {
-                    Count_Road_LengthTest(1);
-                    }
-                 */
 
                  //тестовый переход по F10   на 4 шаг для отладки
                 if (event.key.code == sf::Keyboard::F10 && player_num > 0)
@@ -255,7 +261,7 @@ int main()
                 }
                 }
 
-            if (player_num == 0)   continue;        //блокировка для сервера
+            if (player_num == 0)   continue;        //блокировка для серверного приложения от событий на экране
            
             //если нажата клавиша мыши правая
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Right)
@@ -276,7 +282,8 @@ int main()
                     //карта развития - вывод в увеличенном виде
                     for (int type = 0; type < 5; type++)
                       {
-                      if (Active_develop_card[type].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE(type), 0) > 0)
+                      if (Active_develop_card[type].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && 
+                            (getNumDevelopCARD(IMP_TYPE(type), 0) > 0  || getNumDevelopCARD(IMP_TYPE(type),-1) > 0))
                           {
                           //вывести картинку карты в увеличенном виде
                           Draw_Big_Develop_CARD = type;
@@ -322,11 +329,15 @@ int main()
                 }
 
                //спрайт стрелочки на выставление заявки на обмен с игроком
-               for (int pl = 1; pl < 5; pl++)
+               for (int pl = 1; pl < 7; pl++)
                    {
-                    if (sprite_change[pl].getGlobalBounds().contains(pixelPos.x, pixelPos.y))
+                   //если есть уже 6+ ваших заявок - новую не создавать
+                   int num = 0;
+                   for (int s = 0; s < 12; s++) { if (Change[s].from_pl == player_num && Change[s].status) num++; }
+                   if (sprite_change[pl].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && num < 6)
                        {
                         if (pl == player_num)  continue;
+                        if (player[pl].active == false) continue;
                         AskChangeWithPlayer(pl);
                        }
                     continue;
@@ -362,38 +373,11 @@ int main()
                      if (Game_Step.step[st].flag_bandit == 1)  continue;
 
                       //по реализации карт загнать все в цикл
-                      //карта 1 очко
-                      if (Active_develop_card[(int)IMP_TYPE::POINT1].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::POINT1, 0) > 0)
+                     for(int type = 0;type < 5;type++)
                           {
-                          AskPlayDevelopCard(IMP_TYPE::POINT1);
-                          }
-
-                      //карта рыцарь
-                      if (Active_develop_card[(int)IMP_TYPE::KNIGHT].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::KNIGHT, 0) > 0)
-                          {
-                          AskPlayDevelopCard(IMP_TYPE::KNIGHT);
-                          }
-
-                      //карта 2 дороги
-                      if (Active_develop_card[(int)IMP_TYPE::ROAD2].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::ROAD2, 0) > 0)
-                          {
-                          AskPlayDevelopCard(IMP_TYPE::ROAD2);
-                          }
-
-                      //карта 2 ресурса
-                      if (Active_develop_card[(int)IMP_TYPE::RESURS_CARD2].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, 0) > 0)
-                          {
-                          AskPlayDevelopCard(IMP_TYPE::RESURS_CARD2);
-                          }
-
-                      //карта 1 вид ресурса со всех
-                      if (Active_develop_card[(int)IMP_TYPE::MONOPOLIA].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD(IMP_TYPE::MONOPOLIA, 0) > 0)
-                          {
-                          //std::cout << "  Card RESURS1 selected  " << std::endl;
-                          //переслать запрос серверу сыграть карту развития
-                          AskPlayDevelopCard(IMP_TYPE::MONOPOLIA);
-                          }
-                          
+                          if (Active_develop_card[(int)type].getGlobalBounds().contains(pixelPos.x, pixelPos.y) && getNumDevelopCARD((IMP_TYPE)type, 0) > 0)
+                                AskPlayDevelopCard((IMP_TYPE)type);
+                          }                          
                      }
                 
                 //карточки  ресурсов банка общего банка - обмен ресурсов
@@ -402,12 +386,12 @@ int main()
                     if (st == 4 && Game_Step.step[4].roll_2_dice == 1)   continue;     //еще не кинут кубик
                     if (player_num != Game_Step.current_active_player) continue;  //только активный игрок меняется с банком
                     if (pixelPos.x > 255 && pixelPos.x < 300 && st == 4 && improve_CARDS.size() > 0)
-                    {
+                       {
                         AskBuyImproveCARD();
                         Sleep(20);   //дать время серверу обработать запрос и списать ресурсы
                         Beep(900, 300);
                         continue;
-                    }
+                       }
                     //по старинке по координатам а не по спрайту выбирается тип ресурса
                     if (pixelPos.x > 10 && pixelPos.x <= 55) { CARD_type_get = RESURS::WOOD; }
                     if (pixelPos.x > 55 && pixelPos.x <= 115) { CARD_type_get = RESURS::BRICKS; }
@@ -416,15 +400,15 @@ int main()
                     if (pixelPos.x > 205 && pixelPos.x < 255) { CARD_type_get = RESURS::BREAD; }
 
                     //std::cout << " Выбран   " << resurs_name[(int)CARD_type_get] << std::endl;
-                    if (Play_ONE_resurs > 0)
-                    {
+                    if (Play_ONE_resurs > 0)    //стоит флаг игры карты развития
+                       {
                         Ask_Server_To_Take_Resurs_From_All(CARD_type_get);
                         Play_ONE_resurs = 0;
                         Beep(900, 600);
                         continue;
-                    }
-                    if (Play_two_resurs > 0 && CARD_Bank[(int)CARD_type_get] > 1)
-                    {
+                       }
+                    if (Play_two_resurs > 0 && CARD_Bank[(int)CARD_type_get] > 1)  //стоит флаг игры карты развития
+                        {
                         player[player_num].resurs[(int)CARD_type_get] += 1;
                         ChangeBANK[player_num][(int)CARD_type_get] += 1;
                         CARD_Bank[(int)CARD_type_get] -= 1;
@@ -432,13 +416,13 @@ int main()
                         Ask_Send_Resurs_To_Server();
                         Beep(900, 300);
                         continue;
-                    }
-                    if (st == 4) { AskChangeWithBank(CARD_type_get);  Sleep(20); Beep(900, 300); }
+                        }
+                    if (st == 4) { AskChangeWithBank(CARD_type_get);  Sleep(20); Beep(900, 400); }
                 }
                 
                 //карточки своих ресурсов - переноc в банк обмена
                 if (pixelPos.x > 200 && pixelPos.x < 500 && pixelPos.y > 830 && pixelPos.y < 910)
-                {
+                   {
                     CARD_ismove = true;
                     //std::cout << "  Cards Zone selected  " << std::endl;
                     dY = pixelPos.y - 820;  
@@ -451,15 +435,15 @@ int main()
                     if (st < 4 )   CARD_ismove = false;
 
                     if (player[player_num].resurs[(int)CARD_type_move] - ChangeBANK[player_num][(int)CARD_type_move] >= 1)
-                    {
+                        {
                         if ((Game_Step.step[4].roll_2_dice == 0 && player_num == Game_Step.current_active_player) || player_num != Game_Step.current_active_player)
                             {
                              ChangeBANK[player_num][(int)CARD_type_move] += 1;
                              Beep(950, 100); 
                              Info_Change_Bank();
                             }
-                    }
-                }
+                        }
+                   }
                 
                 //кубик
                if (cube_sprite.getGlobalBounds().contains(pixelPos.x, pixelPos.y) && player_num == Game_Step.current_active_player)
@@ -685,6 +669,10 @@ int main()
         } //end  внутренний  while
 
         //------------------------------ОТРИСОВКА---------------------------------------------------------------------
+
+        //отрисовка всех спрайтов
+        if (true)
+        {
             window.clear();
             //std::cout << " ================ Start_Draw Field ================= " << std::endl;
             if (flag_draw_road_Net == true)  DrawRoadsNet(&window, &Field, &Roads);
@@ -696,12 +684,12 @@ int main()
             if (flag_draw_node == true)  DrawNodes(&window, &Field);
             else  DrawNodesInfo(&window, &Field);
 
-            DrawResursBank(&window);    //ресурсы в банке не принадлежат игрокам
+            if (bandit_ismove == true)  DrawBanditOnCoord(&window, pixelPos.x - (int)dX, pixelPos.y - (int)dY, 0.2f);
+            else { if (flag_draw_gecs == true) DrawBandit(&window, &Gecs); }
+
+            DrawResursBank(&window);    //ресурсы в общем банке 
             DrawPlayer(&window);
             if (st == 4) DrawChangeBank(&window, 150, 650, player_num);
-
-            if (bandit_ismove == true)  DrawBanditOnCoord(&window, pixelPos.x - (int)dX, pixelPos.y - (int)dY, 0.2f);
-                 else   {    if (flag_draw_gecs == true) DrawBandit(&window, &Gecs);   }
 
             //если можем двигать деревню
             if (village_ismove)   DrawVillage(&window, player_num, pixelPos.x - dX, pixelPos.y - dY, 0.2f);
@@ -714,30 +702,33 @@ int main()
 
             //спрайт окончания хода игрока
             if (player_num == Game_Step.current_active_player)
-                {
+            {
                 int flag = false;
-                if((st == 2 || st == 3) && Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)  flag = true;
-                if(st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0 && flag_get_cubic_result == true) flag = true;
+                if ((st == 2 || st == 3) && Game_Step.step[st].flag_set_one_Village == 0 && Game_Step.step[st].flag_set_one_Road == 0)  flag = true;
+                if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0 && flag_get_cubic_result == true) flag = true;
                 //если разрешение на забор карты от игрока после бандита
-                for (int i = 1; i < 7; i++) { if(player[i].flag_allow_get_card == 1) flag = false; }
-                if(flag) Move_Over_Logo(&window);
-                    else sprite_move_over.setPosition(1200,1200);
-                }
+                for (int i = 1; i < 7; i++) { if (player[i].flag_allow_get_card == 1) flag = false; }
+                if (flag) Move_Over_Logo(&window);
+                else sprite_move_over.setPosition(1200, 1200);
+            }
 
-            if (player_num == 1 && Count_Num_players() >= 2   &&  st == 0)  Draw_Start(&window);
+            if (player_num == 1 && Count_Num_players() >= 2 && st == 0)  Draw_Start(&window);
 
             if (player_num == Game_Step.current_active_player && st == 1)   Draw_Cubic(&window);
 
             if (player_num == Game_Step.current_active_player && st == 4)
-                 if (Game_Step.step[st].roll_2_dice == 1)    Draw_Cubic(&window);
-            
+                if (Game_Step.step[st].roll_2_dice == 1)    Draw_Cubic(&window);
+
 
             //если правая клавиша мышки выбрала карту развития
-            if(Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 1.6f, 0);
+            if (Draw_Big_Develop_CARD != -1)   DrawDevelopCard(&window, Draw_Big_Develop_CARD, 500, 300, 1.6f, 0);
 
             if (Big_Message != -1)  Big_Message_Imp_Card(&window, Big_Message);
-            
+
+            if (game_wait_reconnect) Game_Message(&window, "Wait for reconnect player");
+
             window.display();
+        }
           //------------------------- конец отрисовки ------------------------
     }
 

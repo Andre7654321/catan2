@@ -26,9 +26,8 @@ char addr_UDP[20] = " ";
 char addr_connect[20] = "192.168.2.39";
 
 //для сервера
-SOCKET Connections[7] = { 0 };    //6 + server подключения игроков
+SOCKET Connections[10] = { 0 };    //6 + server подключения игроков
 char str_Player_addr[7][20];
-int Counter = 0;           //счетчик подключений
 
 std::mutex mtx1;    //защищает поток сообщений cout
 
@@ -49,6 +48,7 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::ASK_ROLL_2DICE,	    "zCATANz ASK ROLL_2DICE"},
 	{NET_COMMAND::SAY_GAME_START,	    "zCATANz SAY_GAME_START"},
 	{NET_COMMAND::NODE_ARRAY,	        "zCATANz NODE_ARRAY"},
+	{NET_COMMAND::NODE_ARRAY_ZIP,	    "zCATANz NODE_ARRAY_ZIP"},
 	{NET_COMMAND::ROAD_ARRAY,	        "zCATANz ROAD_ARRAY"},
 	{NET_COMMAND::ASK_NODE_ARRAY,	    "zCATANz ASK_NODE_ARRAY"},
 	{NET_COMMAND::ASK_ROAD_ARRAY,	    "zCATANz ASK_ROAD_ARRAY"},
@@ -61,7 +61,7 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::PLAYER_RESURS,	    "zCATANz PLAYER_RESURS"},
 	{NET_COMMAND::DICE_SEVEN,	        "zCATANz DICE_SEVEN"},
 	{NET_COMMAND::BANDIT_GECS,	        "zCATANz BANDIT_GECS"},
-	{NET_COMMAND::ASK_CHANGE_BANK,	    "zCATANz ASK_CHANGE_BANK"},
+	{NET_COMMAND::ASK_CHANGE_WITH_BANK,	    "zCATANz ASK_CHANGE_WITH_BANK"},
 	{NET_COMMAND::PLAYER_CHANGE_AREA,	"zCATANz PLAYER_CHANGE_AREA"},
 	{NET_COMMAND::MAX_WAY_ARMY_OWNER,	"zCATANz MAX_WAY_ARMY_OWNER"},
 	{NET_COMMAND::SEND_CARDS_TO_BANK,	"zCATANz SEND_CARDS_TO_BANK"},
@@ -79,7 +79,9 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::ASK_DELETE_OFFER,    "zCATANz ASK_DELETE_OFFER"},
 	{NET_COMMAND::ASK_ACCEPT_OFFER,    "zCATANz ASK_ACCEPT_OFFER"},
 	{NET_COMMAND::ASK_RESET_GAME,      "zCATANz ASK_RESET_GAME"},
-	{NET_COMMAND::TEST_GAME,           "zCATANz TEST_GAME"}
+	{NET_COMMAND::TEST_GAME,           "zCATANz TEST_GAME"},
+	{NET_COMMAND::WAIT_RECONNECT,      "zCATANz WAIT_RECONNECT"},
+	{NET_COMMAND::SET_CLOSE,           "zCATANz SET_CLOSE"},
 };
 
 
@@ -107,6 +109,8 @@ extern std::vector<IMP_CARD> develop_CARDS[7];
 extern int limit_7[7];
 
 extern bool flag_get_cubic_result;
+extern bool flag_cubic_was_used;   //сервер запоминает что текущий игрок уже бросал кубик
+extern bool flag_develop_card_used;  //сервер запоминает что карта развития уже игралась в этом ходу
 
 extern std::string resurs_name[10];
 extern int Big_Message;              //номер ресурса для вывода сообщения
@@ -114,6 +118,84 @@ extern std::chrono::time_point<std::chrono::steady_clock>  start_Big_Message;
 
 //область обмена ресурсами
 extern int ChangeBANK[7][10];
+extern int game_wait_reconnect;
+
+//===============================================================================================
+// Восстановление соединения с отпавшим игроком в игре
+// 
+//===============================================================================================
+bool Try_Reconnect(int pl,int newConnection,const char* addr)
+{
+	char msg[256];
+
+	//сравнить адрес подключения с отвалившимся
+	if (strcmp(addr, str_Player_addr[pl]) == 0)
+	{
+		std::cout << " восстанавсливается игрок -  " << pl << std::endl;
+
+		strcpy_s(msg, "CATAN GAME in PROGRESS, TRY to RECONNECT PLAYER");
+		send(newConnection, msg, sizeof(msg), NULL);
+
+		//закинуть восстановившемуся состояние игры
+		Connections[pl-1] = newConnection;
+		player[pl].active = true;
+		player[pl].wait = false;
+
+		Set_Player_Number(pl);
+		Send_Bank_Resurs(pl);       //пока для отладки
+		Set_Game_Step(pl);
+		Send_Player_CARDS(pl, pl);
+		Send_Player_Objects(pl, pl);
+		Send_Info_Nodes(pl);	Send_Info_Roads(pl);
+		Send_Develop_CARDS(pl, pl);
+		Send_To_All_Info_MaxWayArmy(pl);
+		for (int ii = 1; ii < 7; ii++)  Send_Player_CARDS(pl, ii);
+		//надо передать номер ходящего с инфо о броске кубика и игры карты развития
+		Set_New_Move(pl);
+		return true;
+	}
+
+return false;
+}
+
+//===============================================================================================
+// Обработка обрыва связи с игроком
+// 
+//===============================================================================================
+int Player_Disconnect(int index)
+{
+	Connections[index] = 0;
+
+	std::cout << " ===================== DISCONNECT Player ========================" << std::endl;
+	//если не осталось подключенных
+	if (Connections[0] == 0 && Connections[1] == 0 && Connections[2] == 0 && Connections[3] == 0)
+	    {
+		std::cout << "Не осталось подключенных игроков, set 1 STEP " << std::endl;
+		for (int pl = 1; pl < 7; pl++) 
+		    {
+			player[pl].active = 0;  player[pl].wait = false;
+		    }
+		Game_Step.current_step = 0;
+		Game_Step.current_active_player = 1;
+		Game_Step.start_player = 1;
+		roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
+		Init_CATAN_Field(gecsPtr, nodePtr, roadPtr);
+	    }
+	std::cout << " == Номер игрока     : " << (index + 1) << std::endl;
+	std::cout << " == Player IP adress : " << str_Player_addr[index+1] << std::endl;
+	if (Game_Step.current_step > 0)
+	std::cout << " == Игра задержана в ожидании возобновления связи              ==" << std::endl;
+	std::cout << " ================================================================"  << std::endl;
+	
+	closesocket(Connections[index]);
+	int pl = index + 1;
+	player[pl].active = false;
+	if (Game_Step.current_step > 0)   player[pl].wait = true;    //игрока в режим ожидания коннекта
+
+	CATAN_SERVER_Command(NET_COMMAND::WAIT_RECONNECT,(char*)&pl,sizeof(int),TO_ALL);
+
+	return 0;
+}
 
 //===============================================================================================
 // Коммандное сетевое сообщение CATAN плавающей длины данных
@@ -125,6 +207,12 @@ int CATAN_CLIENT_Command(NET_COMMAND Net_Command, const char* buf, int len)
 	int num;
 	char title[16];
 
+	if(player_num == 0)
+	    {
+		std::cout << " ERROR CATAN_CLIENT_Command called from server part" << Map_Command[Net_Command] << std::endl;
+		return 0;
+	    }
+
 	if (Connection == 0)  return -2;
 
 		strcpy_s(title, SERVER_command);               //первые 12 символов (с 0 термин) код команды
@@ -134,10 +222,10 @@ int CATAN_CLIENT_Command(NET_COMMAND Net_Command, const char* buf, int len)
 		//заголовок
 		int packet = 0;
 		while (packet < 20)
-		{
+		    {
 			num = send(Connection, &title[packet], 20 - packet, NULL);
 			packet += num;
-		}
+		    }
 
 		if (len == 0)   return 0;
 
@@ -165,7 +253,7 @@ int CATAN_SERVER_Command(NET_COMMAND Net_Command, const char* buf, int len, int 
 	int num;
 	char title[16];
 
-	if (pl < 0 || pl >= 7)  return -1;  //нарушен диапазон номера игрока
+	if (pl < 0 || pl > 10)   return -1;  //нарушен диапазон номера игрока 9-10 используется для передачи команд отключаемым
 
 	if (pl > 0)
 	{
@@ -255,6 +343,7 @@ return false;
 }
 
 //===============================================================================================
+//  читает клиент
 // Чтение Данных Коммандного сетевого сообщения CATAN плавающей длины данных от СЕРВЕРА
 //===============================================================================================
 int Read_SERVER_Data(int len,char* buf)
@@ -273,6 +362,7 @@ return 1;
 }
 
 //===============================================================================================
+//  читает СЕРВЕР
 // Чтение Данных Коммандного сетевого сообщения CATAN плавающей длины данных от КЛИЕНТА
 //===============================================================================================
 int Read_CLIENT_Data(int len, char* buf, int index)
@@ -283,7 +373,7 @@ int Read_CLIENT_Data(int len, char* buf, int index)
 	while (pack_size < len)
 	{
 		ret = recv(Connections[index], &buf[pack_size], len - pack_size, NULL);
-		//if (ret == INVALID_SOCKET) { Server_Disconnect(); return -3; }
+		    if (ret == SOCKET_ERROR) { Player_Disconnect(index);	return -1; }
 		pack_size += ret;
 	}
 
@@ -410,12 +500,14 @@ void Check_UDP()
 //==============================================================================================
 void Check_Connections(void)
 {
-	int i;
+	int num;
+	int pl;
 	SOCKADDR_IN addr;
 	int sizeofaddr = sizeof(addr);
 	//addr.sin_addr.s_addr = inet_addr(addr_listen);      //адрес определим ниже
 	addr.sin_port = htons(MY_PORT);
 	addr.sin_family = AF_INET;      //интернет протокол
+	bool disconnect_flag;
 
 
 	//-----------инфо по нашему компу - получаем свой локальный адрес --------------------------------
@@ -439,7 +531,7 @@ void Check_Connections(void)
 		}
 	}
 
-	//проверить чтобы первые цифры были 192.168.YYY.XXX  !!!
+	//проверить чтобы первые цифры были 192.168.YYY.XXX  !!!  ???
 	addr.sin_addr.s_addr = inet_addr(addr_listen);
 	std::cout << "Listen Address =   " << addr_listen << std::endl;
 
@@ -453,91 +545,115 @@ void Check_Connections(void)
 
 	std::cout << "\n ======  SERVER: Старт цикла ожидания подключений ====== \n  " << std::endl;
 
-	for (i = 0; i < 8; i++)
+	//цикл регистрации подключающихся игроков ========================================================= CONNECT
+	while (true)
 	{
 		std::cout << " SERVER: Wait for getting DATA \n  " << std::endl;
 		newConnection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr);     //не возвращает управление пока не дождется запроса на подключение
-		if (newConnection == 0)
-		{
-			std::cout << "ERROR newConnection" << std::endl;
-			i--;
-			continue;
-		}
+		if (newConnection == 0) { std::cout << "ERROR newConnection" << std::endl; 	continue; }
 		else
 		{
-			//если в игре 4 человека
-			if (Connections[0] != 0 && Connections[1] != 0 && Connections[2] != 0 && Connections[3] != 0)
+			disconnect_flag = 0;
+			num = 0;
+			//набираем игроков на 0 уровне, ограничение по кол-ву игроков
+			if (Game_Step.current_step == 0)
 			{
-				std::cout << " SERVER: Максимальное кол-во игроков (4) в игре \n  " << std::endl;
-				std::cout << "New Connection ABORT " << std::endl;
+				//на 0 шаге не может быть ожидания переподключения
+				for (int ii = 0; ii < 7; ii++)  player[ii].wait = false;
 
-				strcpy_s(msg, "4 players active, TRY to Connect Later");
-				send(newConnection, msg, sizeof(msg), NULL);
+				//поиск первого свободного места игрока
+				for (int ii = 0; ii < 4; ii++)
+				   {
+				   if (Connections[ii] == 0) { num = ii;  break; }
+				   }
 
-				//Sent_Connection_Refused();
-				Sleep(50);
-				closesocket(newConnection);
-				i--;
-				continue;
+				//если в игре уже максимум игроков ожидают старта
+				if (Connections[0] != 0 && Connections[1] != 0 && Connections[2] != 0 && Connections[3] != 0)
+				{
+					std::cout << " SERVER: Max Players already connected \n  " << std::endl;
+					std::cout << " ====  New Connection ABORT ====" << std::endl;
+
+					strcpy_s(msg, "MAX players connected, TRY to Connect Later");
+					send(newConnection, msg, sizeof(msg), NULL);
+					disconnect_flag = 1;
+				}
 			}
-
-			//если нет подключенных
-			if (Connections[0] == 0 && Connections[1] == 0 && Connections[2] == 0 && Connections[3] == 0)
-			{
-				std::cout << "============== First player =============== " << std::endl;
-				Counter = 0;  //сбрасываем счетчик подключений
-				i = 0;        //сбрасываем начало чикла подключений
-				for (int pl = 1; pl < 5; pl++)  player[pl].active = 0;
-				Game_Step.current_step = 0;
-			}
-
-			//если идет игра , то нового игрока не подключаем
+			//если идет игра , то нового игрока подключаем только если есть отвалившиеся
 			if (Game_Step.current_step > 0)
+				{
+					//если есть отвалившиеся
+					if (player[1].wait || player[2].wait || player[3].wait || player[4].wait)
+					{
+						int ii;
+						for (ii = 1; ii < 5; ii++)
+						    {
+							if (player[ii].wait == true)	if (Try_Reconnect(ii, newConnection, inet_ntoa(addr.sin_addr)) == true) { num = ii-1;  ii = 10; break; }
+						    }
+						if (ii < 10)      //не было подключения отвалившихся
+						    {
+							std::cout << "New Connection ABORT, нет совпадения с висящим игроком  " << std::endl;
+
+							strcpy_s(msg, "===== Wait another player to reconnect =======");
+							send(newConnection, msg, sizeof(msg), NULL);
+							disconnect_flag = 1;
+						    }
+					}
+					else    //т е если нет висящих отвалившихся - то никого не подключаем
+					    {
+						std::cout << "New Connection ABORT, CATAN GAME in PROGRESS  " << std::endl;
+
+						strcpy_s(msg, "CATAN GAME in PROGRESS, TRY to Connect Later");
+						send(newConnection, msg, sizeof(msg), NULL);
+						disconnect_flag = 1;
+					    }
+				}
+				
+			if (disconnect_flag == 1)
 			{
-				std::cout << "New Connection ABORT " << std::endl;
+				Sleep(200);
+				Connections[9] = newConnection;
+				CATAN_SERVER_Command(NET_COMMAND::SET_CLOSE, nullptr, NULL, 10);
+				Connections[9] = 0;
 
-				strcpy_s(msg, "CATAN GAME in PROGRESS, TRY to Connect Later");
-				send(newConnection, msg, sizeof(msg), NULL);
-
-				//Sent_Connection_Refused();
 				Sleep(10);
 				closesocket(newConnection);
-				i--;
 				continue;
 			}
 
 			mtx1.lock();
-			std::cout << "SERVER:  OK Player  N= " << (Counter + 1) << "   Connected" << std::endl;
+			std::cout << "SERVER:  OK Player  N= " << num + 1 << "   Connected" << std::endl;
 			mtx1.unlock();
 
 			std::cout << "About player =============================== " << std::endl;
 			std::cout << "Port =  " << addr.sin_port << std::endl;
 			printf("Подключился  %s\n", inet_ntoa(addr.sin_addr));
 			//запоминаем адрес игрока для возможного переподключения при дизконнекте
-			strcpy(str_Player_addr[Counter + 1], inet_ntoa(addr.sin_addr));
+			strcpy(str_Player_addr[num + 1], inet_ntoa(addr.sin_addr));
 			std::cout << "============================================ " << std::endl << std::endl;
 
 			//-----------------------------------------------------------------------------------
 
-			//отправка стартовых сообщений подключившейся станции, выдача номера игроку ------------------
-			strcpy_s(msg, "Hello. It's CATAN GAME ");
-			send(newConnection, msg, sizeof(msg), NULL);
+			if (Game_Step.current_step == 0)
+			{
+				//отправка стартовых сообщений подключившейся станции, выдача номера игроку ------------------
+				strcpy_s(msg, "Hello. It's CATAN GAME ");
+				send(newConnection, msg, sizeof(msg), NULL);
 
-			Connections[i] = newConnection;
-			player[i + 1].active = true;    //регистрируем нового игрока
+				Connections[num] = newConnection;
+				player[num + 1].active = true;    //регистрируем игрока
+				Set_Player_Number(num + 1);
+			}
 
-			Set_Player_Number(i + 1);
-			Send_Field_GECS(i+1);
-			Send_Bandit_GECS(i + 1);
+			Send_Field_GECS(num + 1);
+			Send_Bandit_GECS(num + 1);
 			//coобщить всем о подключенных игроках
 			Send_Connected_Players(TO_ALL);
 
 			//каждому подключенному клиенту создаем поток обработки сообщений сокета
-			CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)ServerClientStreamFunc, (LPVOID)(i), NULL, NULL);
+			CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)ServerClientStreamFunc, (LPVOID)(num), NULL, NULL);
+		}  //else 
 
-		}   //else
-	}   //for
-
+	} //while
 
 	std::cout << " SERVER: Поток подключений завершает работу \n  " << std::endl;
 }
@@ -564,8 +680,7 @@ void ServerClientStreamFunc(int index)
 		while (pack_size < 20)
 		    {
 			ret = recv(Connections[index], &msg[pack_size], 20 - pack_size, NULL);
-			if (ret == SOCKET_ERROR)
-			    {	std::cout << "* SOCKET_ERROR " << std::endl; closesocket(Connections[index]);  Connections[index] = 0; 	return;    }
+			if (ret == SOCKET_ERROR)    {	Player_Disconnect(index);	return;    }
 			pack_size += ret;
 		    }
 
@@ -584,10 +699,10 @@ void ServerClientStreamFunc(int index)
 			    }
 
 			//std::cout << " NEW TYPE NET COMMAND =  " << Map_Command[New_Command] << "   DATA len = " << len << std::endl;
-
+			 //                                                                                                   -- SERVER
 			if (New_Command == NET_COMMAND::ASK_NODE_ARRAY)
 			     {
-				 Send_Info_Nodes(index + 1);   //отправка узлов только запросившему игроку(№ на 1 больше номера соединения)
+				 Send_Info_Nodes_Zip(index + 1);   //отправка узлов только запросившему игроку(№ на 1 больше номера соединения)
 			     }     
 			if (New_Command == NET_COMMAND::ASK_ROAD_ARRAY)
 			    {
@@ -607,7 +722,8 @@ void ServerClientStreamFunc(int index)
 			    {
 				int* intPtr = (int*)buff_tmp;
 				for (auto& node : *nodePtr)    {	node.owner = *intPtr;  intPtr++;  node.object = *intPtr; intPtr++;    }
-				Send_Info_Nodes(TO_ALL); 
+				//Send_Info_Nodes(TO_ALL);
+				Send_Info_Nodes_Zip(TO_ALL);
 			    }
 			if (New_Command == NET_COMMAND::INFO_BANK_RESURS)  //серверу прислали - он все дублирует
 			    {
@@ -663,6 +779,7 @@ void ServerClientStreamFunc(int index)
 				int* intPtr = (int*)buff_tmp;
 				int dice2 =  *intPtr;       //кубик кидался на стороне клиента
 
+				flag_cubic_was_used = true;
 				std::cout << " Результат броска  =  " << dice2 << std::endl;
 
 				Info_Player_Last_Dice(TO_ALL, pl, dice2);
@@ -680,9 +797,9 @@ void ServerClientStreamFunc(int index)
 				if (Game_Step.current_step == 4)
 				   {
 					Game_Step.current_active_player = GetNextPlayer();
-					//активировать игроку карточки рыцарей, которые еще не активированы
+					//активировать игроку карточки развития, которые еще не активированы
 					for (auto& elem : develop_CARDS[Game_Step.current_active_player])
-					    { if (elem.status == -1 && elem.type == IMP_TYPE::KNIGHT)  elem.status = 0;    }
+					    { if (elem.status == -1 )  elem.status = 0;    }
 					Send_Develop_CARDS(TO_ALL, Game_Step.current_active_player);
 					std::cout << "SERVER  Передача хода игроку  " << Game_Step.current_active_player << std::endl;
 					//Set_New_Move(TO_ALL);
@@ -738,6 +855,8 @@ void ServerClientStreamFunc(int index)
 				     }
 
 				mtx1.lock();  std::cout << "SERVER*  Передача хода игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
+				flag_cubic_was_used = false;
+				flag_develop_card_used = false;
 				Set_New_Move(TO_ALL);
 			    }
 			if (New_Command == NET_COMMAND::LAST_VILLAGE)
@@ -760,122 +879,76 @@ void ServerClientStreamFunc(int index)
 				   bandit_Gecs = *intPtr;
 				   Send_Bandit_GECS(TO_ALL);
 			       }
-
-			//cycle new net finish
-			if(buff_tmp != nullptr) delete[] buff_tmp;
-			continue;
-		    }
-		
-		//обработка команд старого формата с пакетом в 256 байт
-		pack_size = 20;
-		while (pack_size < 256)
-		{
-			ret = recv(Connections[index], &msg[pack_size], sizeof(msg) - pack_size, NULL);
-			if (ret == SOCKET_ERROR)
+			if (New_Command == NET_COMMAND::INFO_CHANGE_BANK)
 			    {
-				std::cout << "* SOCKET_ERROR " << std::endl;	 closesocket(Connections[index]);  Connections[index] = 0; 	return;
+				//принимаем обменный банк игрока
+				int pl = index + 1;
+				int* intPtr = (int*)buff_tmp;
+				memcpy(&ChangeBANK[pl][0],intPtr, sizeof(int) * 10);
+
+				//сообщить всем состояние банка
+				Send_Info_Change_Area(TO_ALL, pl);
 			    }
-			pack_size += ret;
-		}
-
-		//выбрать из сообщений системные CATAN ==================================================================
-		str.assign(msg, 0, 7);    //берем первые 7 символов сообщения
-		//если старое системное сообщение zCATANz
-		if (str.compare(CATAN_command) == 0)
-		{
-			str.assign(msg, 0, strlen(msg));  //копируется 0 термин строка без бинарного хвоста в начало строки str
-			//std::cout << " Get CATAN COMMAND  " << std::endl;
-
-			//определить тип команды перебором сравнения массива со строкой  
-			//(В str у нас первая строка взятая из пакета)
-			for (const auto& key : Map_Command)
-			    {
-				if (key.second == str)  Command = key.first;
-			    }
-
-			//std::cout << " Текст команды: " << Map_Command[Command] << std::endl;             // -- SERVER
-
-			if (Command == NET_COMMAND::SAY_GAME_START)
-			{
-				mtx1.lock();  std::cout << "  START GAME Command !!!  " << std::endl; mtx1.unlock();
-
-				Game_Step.current_step = 1;
-				Game_Step.current_active_player = 1;
-
-				strcpy_s(msg, " ================ Игра стартовала ===============");
-				CATAN_Message(msg, strlen(msg), TO_ALL);
-
-				Set_Game_Step(TO_ALL);
-				Set_New_Move(TO_ALL);
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_PLAYER_OBJECTS)    //у сервера попросил игрок обновить и шлем только ему 
-			    {
-				int pl = atoi(&msg[50]);
+			if (New_Command == NET_COMMAND::ASK_PLAYER_OBJECTS)
+			    { 
+				int pl = index + 1;;
 				Send_Player_Objects(pl, pl);
 				continue;
 			    }
-			if (Command == NET_COMMAND::ASK_CHANGE_BANK)    //запрос на обмен ресурсов
-			{
-				int pl = atoi(&msg[50]);
-				int type_put = atoi(&msg[54]);
-				memcpy(&ChangeBANK[pl][0], &msg[60], sizeof(int) * 10);
+			if (New_Command == NET_COMMAND::ASK_CHANGE_WITH_BANK)
+			     {
+				 int pl = index + 1;
+				 int* intPtr = (int*)buff_tmp;
+				 int type_put =  *intPtr;     //получаемый тип карты
 
-				//std::cout << " Запрос на обмен с банком " << resurs_name[type_put] << " from pl " << pl  <<  std::endl;
-
-				//найти 4 карточки одного типа, вычесть их из банка игрока
-				int type_get = 0;
-				int need_card;
-				for (int i = 1; i < 10; i++)
-				{
+				 //std::cout << " Запрос на обмен с банком " << resurs_name[type_put] << " from pl " << pl  <<  std::endl;
+				 //найти  карточки одного типа, вычесть их из банка игрока
+				 int type_get = 0;
+				 int need_card;
+				 for (int i = 1; i < 10; i++)
+				    {
 					need_card = 4;
 					if (bonus31(pl)) need_card = 3;
 					if (bonus21(pl, i)) need_card = 2;
 					//проверить есть ли нужное кол-во в обменном банке и для контроля в банке игрока
 					if (ChangeBANK[pl][i] >= need_card && player[pl].resurs[i] >= need_card) { type_get = i; break; }
-				}
+				    }
 
-				if (type_get == 0) { std::cout << " не нашлось нужное кол-во карт " << std::endl;	continue; }
-				//проверить если запрашиваемый ресурс в общем банке
-				if (CARD_Bank[type_put] < 1) { std::cout << " В банке нет ресурса " << std::endl;	continue; }
-
-				//перенести карты в банках
-				player[pl].resurs[type_put] += 1;            ChangeBANK[pl][type_put] += 1;	           CARD_Bank[type_put] -= 1;
-				player[pl].resurs[type_get] -= need_card;    ChangeBANK[pl][type_get] -= need_card;  	CARD_Bank[type_get] += need_card;
-
-				//сообщить всем состояние банков карточек
-				Send_To_All_Info_Resurs();
-				continue;
-			}
-			if (Command == NET_COMMAND::SEND_CARDS_TO_BANK)
-			{
-				//принимаем обменный банк
-				int pl = atoi(&msg[50]);
+				 //если найдены карты для обмена и запрашиваемый ресурс есть
+				 if (type_get != 0 && CARD_Bank[type_put] >= 1)
+				       {
+					   //перенести карты в банках
+					   player[pl].resurs[type_put] += 1;            ChangeBANK[pl][type_put] += 1;	        CARD_Bank[type_put] -= 1;
+					   player[pl].resurs[type_get] -= need_card;    ChangeBANK[pl][type_get] -= need_card;  	CARD_Bank[type_get] += need_card;
+					   Send_To_All_Info_Resurs();
+				       }
+			     }
+			if (New_Command == NET_COMMAND::SEND_CARDS_TO_BANK)
+			    {
+				//сдача обменного банка в общий
+				int pl = index + 1;
 				int num;
 				for (int i = 1; i < 10; i++)
-				{
+				   {
 					num = ChangeBANK[pl][i];
 					if (num != 0) { player[pl].resurs[i] -= num;     ChangeBANK[pl][i] -= num;	   CARD_Bank[i] += num; }
-				}
-
+				   }
 				//сообщить всем состояние банков карточек - тк как общий банк и банк игрока тоже меняется
 				Send_To_All_Info_Resurs();
-				continue;
-			}
-			if (Command == NET_COMMAND::INFO_CHANGE_BANK)
-			{
-				//принимаем обменный банк игрока
-				int pl = atoi(&msg[50]);
-				int type_put = atoi(&msg[54]);
-				memcpy(&ChangeBANK[pl][0], &msg[60], sizeof(int) * 10);
-
-				//сообщить всем состояние банка
-				Send_Info_Change_Area(TO_ALL,pl);
-			}
-			if (Command == NET_COMMAND::TAKE_CARD_FROM_PLAYER)
-			{
-				int pl = atoi(&msg[50]);
-				int pl_donor = atoi(&msg[54]);
+			    }
+			if (New_Command == NET_COMMAND::SAY_GAME_START)
+			    {
+				mtx1.lock();  std::cout << "  START GAME Command !!!  " << std::endl; mtx1.unlock();
+				Game_Step.current_step = 1; 	Game_Step.current_active_player = 1;
+				strcpy_s(msg, " ================ GAME START ===============");
+				CATAN_Message(msg, strlen(msg), TO_ALL);
+				Set_Game_Step(TO_ALL);  Set_New_Move(TO_ALL);
+			    }
+			if (New_Command == NET_COMMAND::TAKE_CARD_FROM_PLAYER)
+			    {
+				int pl = index + 1;
+				int* intPtr = (int*)buff_tmp;
+				int pl_donor = *intPtr;
 
 				//std::cout << " Take card command "  << std::endl;
 				int type = TakeRandomCardFromPl(pl_donor);
@@ -884,129 +957,170 @@ void ServerClientStreamFunc(int index)
 
 				//сообщить всем состояние банков карточек - тк как общий банк и банк игрока тоже меняется
 				Send_To_All_Info_Resurs();
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_BUY_IMPROVE_CARD)
-			{
-				if (improve_CARDS.size() < 1)    continue;    //закончились карты развития
-				int pl = atoi(&msg[50]);
-				memcpy(&ChangeBANK[pl][0], &msg[60], sizeof(int) * 10);
-
+			    }
+			if (New_Command == NET_COMMAND::ASK_BUY_IMPROVE_CARD && improve_CARDS.size() >= 1)
+			    {
+				int pl = index+1;
 				//проверить достаточность карт
-				if (ChangeBANK[pl][(int)RESURS::STONE] == 0 || ChangeBANK[pl][(int)RESURS::OVCA] == 0 ||
-					ChangeBANK[pl][(int)RESURS::BREAD] == 0)
+				if (ChangeBANK[pl][(int)RESURS::STONE] == 0 || ChangeBANK[pl][(int)RESURS::OVCA] == 0 || ChangeBANK[pl][(int)RESURS::BREAD] == 0)
 				    {
 					std::cout << "SERVER: Не хватает ресурсов " << std::endl;
-					continue;
 				    }
+				else
+				   {
+					//забрать карты у игрока и перенести в банк
+					ChangeBANK[pl][(int)RESURS::STONE] -= 1;  player[pl].resurs[(int)RESURS::STONE] -= 1;  CARD_Bank[(int)RESURS::STONE] += 1;
+					ChangeBANK[pl][(int)RESURS::OVCA] -= 1;  player[pl].resurs[(int)RESURS::OVCA] -= 1;   CARD_Bank[(int)RESURS::OVCA] += 1;
+					ChangeBANK[pl][(int)RESURS::BREAD] -= 1;  player[pl].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
 
-				//забрать карты у игрока и перенести в банк
-				ChangeBANK[pl][(int)RESURS::STONE] -= 1;  player[pl].resurs[(int)RESURS::STONE] -= 1;  CARD_Bank[(int)RESURS::STONE] += 1;
-				ChangeBANK[pl][(int)RESURS::OVCA] -= 1;  player[pl].resurs[(int)RESURS::OVCA] -= 1;   CARD_Bank[(int)RESURS::OVCA] += 1;
-				ChangeBANK[pl][(int)RESURS::BREAD] -= 1;  player[pl].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
+					//получить тип карты развития из вектора
+					auto type = improve_CARDS.at(0).type;
+					auto status = improve_CARDS.at(0).status;
+					//вытащить первую карту развития, отданную клиенту из вектора
+					improve_CARDS.erase(improve_CARDS.begin());
 
-				//получить тип карты развития из вектора
-				auto type = improve_CARDS.at(0).type;
-				auto status = improve_CARDS.at(0).status;
-				//вытащить первую карту развития, отданную клиенту из вектора
-				improve_CARDS.erase(improve_CARDS.begin());
+					//поместить карту в вектор игрока и обновить данные карт развития игрока всем
+					IMP_CARD ttt = { status, type };
+					develop_CARDS[pl].push_back(ttt);
+					Send_Develop_CARDS(TO_ALL, pl);
 
-				//поместить карту в вектор игрока и обновить данные карт развития игрока всем
-				IMP_CARD ttt = { status, type };
-				develop_CARDS[pl].push_back(ttt);
-				Send_Develop_CARDS(TO_ALL,pl);
-
-				//std::cout << " Карта развития " << (int)type << " vector_size =  "<< develop_CARDS[pl].size()  << std::endl;
-				//сообщить всем состояние банков карточек ресурсов
-				Send_To_All_Info_Resurs();
-
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_PLAY_DEVELOP_CARD)
+					//std::cout << " Карта развития " << (int)type << " vector_size =  "<< develop_CARDS[pl].size()  << std::endl;
+					//сообщить всем состояние банков карточек ресурсов
+					Send_To_All_Info_Resurs();
+				    }
+			    }
+			if (New_Command == NET_COMMAND::ASK_PLAY_DEVELOP_CARD)
 			    {
-				int pl = atoi(&msg[50]);
-				int type = atoi(&msg[54]);
+			    int pl = index+1;
+				int* intPtr = (int*)buff_tmp;
+				int type  = *intPtr;
+
+				flag_develop_card_used = true;
+				//при любой карте развития меняющей ресурсы ресурсы  
+				if (type != (int)IMP_TYPE::POINT1 && type != (int)IMP_TYPE::ROAD2)
+				    {
+					InitChange_BANK(pl);    //только банк играющего карту
+					Send_Info_Change_Area(TO_ALL,pl);
+				    }
 
 				//в векторе карт развития игрока первую активную найденную карту перевести в статус 1(сыграна)
 				for (auto& elem : develop_CARDS[pl])
-				   {
-					if (elem.status == 0 && type == (int)elem.type)
-					    { elem.status = 1;  break;   }
-				    }
-				//разослать вектор карт развития игрока сыгравшего карту
+					{
+					if (elem.status == 0 && type == (int)elem.type) 	{	elem.status = 1;  break;  }
+					}	
 				Send_Develop_CARDS(TO_ALL, pl);
 				//переслать всем инфо о игре картой развития
-				Info_Play_Develop_Card(TO_ALL,pl,type);
-
-				continue;
+				Info_Play_Develop_Card(TO_ALL, pl, type);
 			    }
-			if (Command == NET_COMMAND::ASK_GET_RESURS_FROM_ALL)
-			{
-				int pl = atoi(&msg[50]);
-				int type = atoi(&msg[54]);
+			if (New_Command == NET_COMMAND::ASK_GET_RESURS_FROM_ALL)
+			    {
+				int pl = index+1;
+				int* intPtr = (int*)buff_tmp;
+				int type = *intPtr;
 				//std::cout << " запрос от игрока " << pl << " забрать все   " << resurs_name[(int)type] << std::endl;
 
-				for (int i = 1; i < 5; i++)
-				{
+				for (int i = 1; i < 7; i++)   //цикл по игрокам
+				    {
 					if (i == pl || player[i].active == 0)  continue;
 					//перенести карты в банках
 					player[pl].resurs[type] += player[i].resurs[type];     ChangeBANK[pl][type] += player[i].resurs[type];
 					player[i].resurs[type] = 0;                            ChangeBANK[i][type] = 0;
-				}
+				    }
 
-				//сообщить всем состояние банков карточек ресурсов
+				 //сообщить всем состояние банков карточек ресурсов
+				 Send_To_All_Info_Resurs();
+			     }
+			if (New_Command == NET_COMMAND::ASK_RESET_GAME)
+			    {
+				std::cout << "  RESET COMMAND   " << std::endl;
+
+				Game_Step.current_step = 0;
+				Game_Step.current_active_player = 1;
+				Game_Step.start_player = 1;
+
+				roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
+				Init_CATAN_Field(gecsPtr, nodePtr, roadPtr);
+
+				Send_Info_Nodes(TO_ALL);	Send_Info_Roads(TO_ALL);
+				Send_Field_GECS(TO_ALL);	Send_Bandit_GECS(TO_ALL);
+
+				//число городов, деревень, дорог игрока
+				for (int pl = 1; pl < 7; pl++)
+				    {
+					if (player[pl].active == false)  continue;
+					develop_CARDS[pl].clear();
+					Send_Develop_CARDS(TO_ALL, pl);
+					Send_Player_Objects(TO_ALL, pl);
+				    }
+
 				Send_To_All_Info_Resurs();
-				continue;
-			}
-			if (Command == NET_COMMAND::SET_CHANGE_OFFER)
-			{
-				int pl = atoi(&msg[50]);
-				int pl_change = atoi(&msg[54]);
+				Send_To_All_Info_MaxWayArmy(TO_ALL);
+				Set_Game_Step(TO_ALL);
+				Set_New_Move(TO_ALL);
+			    }
+			if (New_Command == NET_COMMAND::TEST_GAME)
+			    {
+				Game_Step.current_step = 4;
+				player[1].resurs[1] = 40;  player[1].resurs[2] = 40;  player[1].resurs[3] = 40; player[1].resurs[4] = 40;  player[1].resurs[5] = 40;
+				player[2].resurs[1] = 40;  player[2].resurs[2] = 40;  player[2].resurs[3] = 40; player[2].resurs[4] = 40; player[2].resurs[5] = 40;
+				nodePtr->at(18).owner = 1; nodePtr->at(18).object = VILLAGE;
+				nodePtr->at(25).owner = 1; nodePtr->at(25).object = TOWN;
+				nodePtr->at(9).owner = 2; nodePtr->at(9).object = TOWN;
+				nodePtr->at(34).owner = 2; nodePtr->at(34).object = VILLAGE;
+				Send_Info_Nodes_Zip(TO_ALL);
+				Send_Info_Roads(TO_ALL);
+				Send_To_All_Info_Resurs();
+
+				Set_Game_Step(TO_ALL);
+			    }
+			if (New_Command == NET_COMMAND::SET_CHANGE_OFFER)
+			   {
+				int pl = index+1;
+				int* intPtr = (int*)buff_tmp;
+				int pl_change = *intPtr;
 
 				//std::cout << " Change SET command from   "  <<  pl << "  to "  << pl_change  << std::endl;
 				//заполнить на основе банков обмена игроков структуру сделки
 				//найти не активную сделку
 				int s = 0;
 				for (s = 0; s < 12; s++) { if (Change[s].status == 0) break; }
-				if (s == 12)  continue;
+				if (s < 12)
+				    {
+					Change[s].from_pl = pl; 		Change[s].to_pl = pl_change;    Change[s].status = 1;
+					for (int t = 0; t < 6; t++)    //цикл по типу ресурса
+					    {
+						Change[s].offer_num[t] = (int)ChangeBANK[pl][t];
+						Change[s].need_num[t] = (int)ChangeBANK[pl_change][t];
+					    }
+					//передать говоую сделку все игрокам
+					Send_Info_Change(TO_ALL, s);
+				    }
+			    }
+			if (New_Command == NET_COMMAND::ASK_DELETE_OFFER)
+			    {
+				int pl = index+1;
+				int* intPtr = (int*)buff_tmp;
+				int s = *intPtr;
 
-				Change[s].from_pl = pl; 		Change[s].to_pl = pl_change;    Change[s].status = 1;
-				for (int t = 0; t < 6; t++)
-				{
-					Change[s].offer_num[t] = (int)ChangeBANK[pl][t];
-					Change[s].need_num[t] = (int)ChangeBANK[pl_change][t];
-				}
-				//передать говоую сделку все игрокам
-				Send_Info_Change(TO_ALL,s);
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_DELETE_OFFER)
-			{
-				//std::cout << "  DELETE OFFER  " << std::endl;
-				int pl = atoi(&msg[50]);
-				int s = atoi(&msg[54]);  //номер заявки
 				Change[s].status = 0;
-				//передать говоую сделку все игрокам
 				Send_Info_Change(TO_ALL, s);
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_ACCEPT_OFFER)
-			{
-				std::cout << "  ACCEPT OFFER  " << std::endl;
-
-				int pl = atoi(&msg[50]);
-				int s = atoi(&msg[54]);  //номер заявки
+			    }
+			if (New_Command == NET_COMMAND::ASK_ACCEPT_OFFER)
+			    {
+				//std::cout << "  ACCEPT OFFER  " << std::endl;
+				int pl = index+1;
+				int* intPtr = (int*)buff_tmp;
+				int s = *intPtr;
 
 				int pl1 = Change[s].from_pl;
 				int pl2 = Change[s].to_pl;
 
-				if (pl2 != pl)   continue;   //если по ошибке инициатор обмена не получатель заявки
 				//произвести обмен
 				for (int t = 0; t < 6; t++)
-				{
+				    {
 					player[pl1].resurs[t] += Change[s].need_num[t];   player[pl2].resurs[t] -= Change[s].need_num[t];
 					player[pl2].resurs[t] += Change[s].offer_num[t];  player[pl1].resurs[t] -= Change[s].offer_num[t];
-				}
+				    }
 
 				Send_Player_CARDS(TO_ALL, pl1);
 				Send_Player_CARDS(TO_ALL, pl2);
@@ -1018,82 +1132,39 @@ void ServerClientStreamFunc(int index)
 				//передать завершенную сделку все игрокам
 				Change[s].status = 0;
 				Send_Info_Change(TO_ALL, s);
-				continue;
-			}
-			if (Command == NET_COMMAND::ASK_RESET_GAME)
-			{
-				std::cout << "  RESET COMMAND   " << std::endl;
+			    }
 
-				Game_Step.current_active_player = 1;
-				Game_Step.current_step = 0;
-				Game_Step.start_player = 1;
-
-				roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
-				//останутся ли верными указатели на вектора ??
-				Init_CATAN_Field(gecsPtr, nodePtr, roadPtr);
-
-				Send_Info_Nodes(TO_ALL);
-				Send_To_All_Info_Resurs();
-				Send_Info_Roads(TO_ALL);
-
-				//передача сформированного поля - гексы и номера - остальное клиент сформирует
-				Send_Field_GECS(TO_ALL);
-				Send_Bandit_GECS(TO_ALL);
-				Set_Game_Step(TO_ALL);
-				Set_New_Move(TO_ALL);
-
-				//число городов, деревень, дорог игрока
-				for (int pl = 1; pl < 7; pl++)
-				{
-					if (player[pl].active == false)  continue;
-					develop_CARDS[pl].clear();
-					Send_Develop_CARDS(TO_ALL, pl);
-					Send_Player_Objects(TO_ALL, pl);
-				}
-
-				Send_To_All_Info_Resurs();
-				Send_To_All_Info_MaxWayArmy(TO_ALL);
-				continue;
-			}
-			if (Command == NET_COMMAND::TEST_GAME)
-			{
-				Game_Step.current_step = 4;
-				player[1].resurs[1] = 40;  player[1].resurs[2] = 40;  player[1].resurs[3] = 40; player[1].resurs[4] = 40;  player[1].resurs[5] = 40;
-				player[2].resurs[1] = 40;  player[2].resurs[2] = 40;  player[2].resurs[3] = 40; player[2].resurs[5] = 40;
-				nodePtr->at(5).owner = 1; nodePtr->at(5).object = TOWN;
-				nodePtr->at(25).owner = 1; nodePtr->at(25).object = TOWN;
-				nodePtr->at(9).owner = 2; nodePtr->at(9).object = TOWN;
-				nodePtr->at(45).owner = 2; nodePtr->at(45).object = TOWN;
-				Send_Info_Nodes(TO_ALL);
-				Send_Info_Roads(TO_ALL);
-				Send_To_All_Info_Resurs();
-
-				Set_Game_Step(TO_ALL);
-				continue;
-			}
-
+			//---------------cycle new net finish -------------------------
+			if(buff_tmp != nullptr) delete[] buff_tmp;
 			continue;
-		}  //закончена обработка , если в команде нет CONTINUE, то она будет дублирована всем
+		    }
+		
+		//обработка команд старого формата с пакетом в 256 байт
+		pack_size = 20;
+		while (pack_size < 256)
+		    {
+			ret = recv(Connections[index], &msg[pack_size], sizeof(msg) - pack_size, NULL);
+			if (ret == SOCKET_ERROR)	if (ret == SOCKET_ERROR) { Player_Disconnect(index);	return; }
+			pack_size += ret;
+		    }
 
-
-		//сюда попадают только несистемные сообщения
+		//сюда попадают только несистемные сообщения или чат
 		//повторить отправку сообщения всем кроме INDEX если это чат
-		for (int i = 0; i < 4; i++)
+		for (int i = 0; i < 5; i++)
 		{
 			if (i == index)    continue;     // в index  не отправляем
 			if (Connections[i] == 0)    continue;
 			//рассылка получателям
 			if (send(Connections[i], msg, sizeof(msg), NULL) == INVALID_SOCKET)
-			{
+			    {
 				std::cout << "**  ERROR SEND  " << std::endl;   //вероятно процедуру сбоя связи надо менять для возможности восстановления подключения к серверу
 				closesocket(Connections[i]);	Connections[i] = 0;
-			}
-
+			   }
 		}   //for
 	}
 }
 
-//===============================================================================================       CLIENT NET CYCLE
+//===============================================================================================       CLIENT 
  //функция клиента для обработки сообщений от серверной части
  //при получении пакета выводит сообщение в чат если это сообщение игрока
  //если это системное сообщение CATAN обрабатывает
@@ -1160,9 +1231,9 @@ void ClientHandler(int index)
 					 int* IntPtr = (int*)buff_tmp;
 					  for (int ii = 1; ii < 7; ii++)
 					     {
-						 if(player[ii].active == false && *IntPtr != 0)
-						       std::cout << "Подключился игрок №: " << ii << std::endl; 
+						 if(player[ii].active == false && *IntPtr != 0)       std::cout << "Подключился игрок №: " << ii << std::endl; 
 						 player[ii].active = *IntPtr;
+						 if(player[ii].active)   player[ii].wait = false;
 						 IntPtr++;
 					     }
 				    }
@@ -1184,19 +1255,25 @@ void ClientHandler(int index)
 				    }
 				 if(Serv_Command == NET_COMMAND::SET_N_ACTIVE_PLAYER)
 				        {
-					    if (Game_Step.current_step == 4) flag_get_cubic_result = false;
-					    Game_Step.current_active_player = *((int*)&buff_tmp[0]);
+					    int* IntPtr = (int*)buff_tmp;
+						Game_Step.current_active_player = *IntPtr;  IntPtr++;
+						flag_cubic_was_used = *IntPtr;              IntPtr++;
+						flag_develop_card_used = *IntPtr;
 
 					    Game_Step.step[4].flag_bandit = 0;
 
 					    //сброс флагов игры карт развития
 					    Play_two_resurs = 0;    Play_ONE_resurs = 0;    Play_two_roads = 0;
-					    Allow_Develop_card = 1;
+					    if(flag_develop_card_used == false)  Allow_Develop_card = 1;
+						     else Allow_Develop_card = 0;
+						if (flag_cubic_was_used == false)   flag_get_cubic_result = false;
+						     else   flag_get_cubic_result = true;
 
 					    //отмена всех предлож на обмен
 					    for (int i = 0; i < 12; i++)  Change[i].status = 0;
 
-					    if (Game_Step.current_step == 4)  Game_Step.step[4].roll_2_dice = 1;
+					    if (Game_Step.current_step == 4 && flag_get_cubic_result == false)  Game_Step.step[4].roll_2_dice = 1;
+						        else  Game_Step.step[4].roll_2_dice = 0;
 					    InitChange_BANK();    //в начале хода банк обмена обнуляется
 					    for (int ii = 1; ii < 5; ii++) { player[ii].flag_allow_get_card = 0;  limit_7[ii] = 0; }
 
@@ -1214,6 +1291,23 @@ void ClientHandler(int index)
 						  node.object = *intPtr; intPtr++;
 					     }
 				      }
+				 if(Serv_Command == NET_COMMAND::NODE_ARRAY_ZIP)
+				     {
+					 //в сжатом виде передаются только узлы со строениями
+					 int* intPtr = (int*)buff_tmp;
+					 int size = *intPtr;  intPtr++;
+
+					 for (auto& node : *nodePtr)
+					   {
+						 if (node.number == *intPtr)
+						     {
+							 intPtr++;
+							 node.owner = *intPtr;  intPtr++;
+							 node.object = *intPtr; intPtr++;
+						     }
+						 else   {	 node.owner = -1;  node.object = -1;    }
+					   }
+				     }
 				 if(Serv_Command == NET_COMMAND::ROAD_ARRAY)
 				     {
 					 //info о принадлежности дороги и типе постройки (есть версии когда это мост)
@@ -1287,7 +1381,6 @@ void ClientHandler(int index)
 
 					  if (pl == player_num)
 					      {
-						  InitChange_BANK();
 						  if (type == (int)IMP_TYPE::KNIGHT)    	 Game_Step.step[4].flag_bandit = 1;
 						  if (type == (int)IMP_TYPE::ROAD2)          Play_two_roads = 2;
 						  if (type == (int)IMP_TYPE::RESURS_CARD2)   Play_two_resurs = 2;
@@ -1350,11 +1443,31 @@ void ClientHandler(int index)
 					  int s = *intPtr;  intPtr++;   //номер сделки                              
 					  memcpy(&Change[s],intPtr,sizeof(CHANGE));        //заполненный экземпляр сделки
 				      }
-				 if (Serv_Command == NET_COMMAND::EMPTY)
+				 if(Serv_Command == NET_COMMAND::EMPTY)
 				     {
 					 buff_tmp[len - 1] = 0;
 					 mtx1.lock();	std::cout << "Cat_mess:   " << buff_tmp << std::endl;	mtx1.unlock();
 				     }
+				 if(Serv_Command == NET_COMMAND::WAIT_RECONNECT)
+ 				    {
+					 int* intPtr = (int*)buff_tmp;
+					 int player_disconnect = *intPtr;  intPtr++;
+					//вывести сообщение о disconnect и подвесить игру до сообщения сервера о возврате игрока
+					 std::cout << " ATTENTION  DISCONNECT Player =  " << player_disconnect << std::endl;
+					 if (Game_Step.current_step > 0)
+					     {
+						 player[player_disconnect].wait = true;
+						 game_wait_reconnect += 1;
+					     }
+					 else player[player_disconnect].active = false;
+				    }
+				 if(Serv_Command == NET_COMMAND::SET_CLOSE)
+				       {
+					   std::cout << " COMMAND CLOSE "  << std::endl;
+					    Sleep(200);
+					    exit(1);
+				       }
+
 				  
 				 if(buff_tmp != nullptr)  delete[] buff_tmp;
 				 //================================================================

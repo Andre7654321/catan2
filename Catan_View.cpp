@@ -74,6 +74,23 @@ void Big_Message_Imp_Card(sf::RenderWindow* win,int type)
     return;
     }
 //----------------------------------------------------------------
+//================================================================
+//  сообщение на весь экран об игре карты развития
+//================================================================
+void Game_Message(sf::RenderWindow* win, const  char* mess)
+{
+    sf::Text text_step("", font, 40);   //для информации о текущем шаге игры
+    text_step.setFillColor(sf::Color::Red);
+
+    text_step.setCharacterSize(70);
+    text_step.setString(mess);
+    text_step.setPosition(300,300);      win->draw(text_step);
+
+    return;
+}
+//----------------------------------------------------------------
+
+
 
 sf::Sprite bandit_sprite;
 int bandit_Gecs = -1;
@@ -425,17 +442,16 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
 
  //сами ресурсы рубашкой в зоне обмена
  int num = getPlayerNumCardResurs(pl);
-    if (num && numCardChange(pl) == 0 && player_num != pl)
+ if (num && numCardChange(pl) == 0 && player_num != pl)
      {
       if(num > 5)  num = 5;
       while(num-- > 0)  DrawCard(win, 0, x + 25 + num * 5, y + 27 + num * 2, 0.35);
      }
 
-  //показываем явно в зоне обмена
+  //показываем явно в зоне обмена только существующие в этой реализации ресурсы
   for (int i = 0; i < 10; i++)
     {
-     if(ChangeBANK[pl][i] == 0) continue;  //если ресурса нет, то не прорисовываем
-
+    if(ChangeBANK[pl][i] == 0) continue;  //если ресурса нет, то не прорисовываем
     if (i == (int)RESURS::EMPTY) continue;
     if (i == (int)RESURS::FISH1) continue;
     if (i == (int)RESURS::FISH2) continue;
@@ -456,7 +472,7 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
 
 sf::Sprite sprite_Offer[12];
 //=====================================================================
-//   предложения по обмену
+//   предложения по обмену для иных игроков в левой части экрана
 //=====================================================================
 void Draw_Change_Offers(sf::RenderWindow* win,int pl,int pl_y)
 {
@@ -549,6 +565,8 @@ void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
                 win->draw(text2);
                 }
             }
+        // лого игрока - понимание от кого заявка на обмен
+        DrawTown(win, Change[s].from_pl, s_x + 184, s_y + 7 - num * 60,0.2);
         num++;
     }
 
@@ -558,7 +576,7 @@ void Draw_Change_Offers_ForActive(sf::RenderWindow* win)
 //int flag_texture_red_box = 0;
 //sf::Texture texture_red_box;
 //=====================================================================
-//    ресурсы и фишки игрока 
+//    прорисовка основного игрока приложения и остальных слева экрана
 //=====================================================================
 void DrawPlayer(sf::RenderWindow* win)
 {
@@ -574,12 +592,13 @@ void DrawPlayer(sf::RenderWindow* win)
 
     //если есть еще активные игроки - прорисовать их в левой части поля ----------------------
     int place = 0, num;
-    for (int i = 1; i < 5; i++)
+    for (int i = 1; i < 7; i++)
     {
         if (i == player_num) continue;   //свой номер
-        if (player[i].active == true)
+        if (player[i].active == true || player[i].wait == true)
         {
-            DrawTown(win, i, 30, 190 + place * 160, 0.20);
+           if(player[i].active == true && player[i].wait == false)    DrawTown(win, i, 30, 190 + place * 160, 0.20);
+           if(player[i].wait == true)      DrawRoad(win, i, 30, 190 + place * 160, 0.20,0);
             
             //количество карт игрока
             num = getPlayerNumCardResurs(i);  
@@ -1013,8 +1032,8 @@ int develop_field_y = 780;
 //=================================================================
 void Draw_Develop_Cards_Field(sf::RenderWindow* win)
 {
-int num;
-char str[10];
+int num,num_inactive;
+char str[10],str1[10];
 
 sf::Text text2("", font, 16);
 text2.setFillColor(sf::Color::White);
@@ -1022,54 +1041,61 @@ text2.setFillColor(sf::Color::White);
 // верхний ряд - активные карточки
 // нижний ряд  - сыгранные карточки
     
-    //активные рыцари
+    //рыцари
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT,0);
-    if (num) {
+    num_inactive = getNumDevelopCARD(IMP_TYPE::KNIGHT, -1);
+    if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 64, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        text2.setPosition(develop_field_x + 60, develop_field_y - 8);
+        _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
+        if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
+        text2.setString(str); win->draw(text2);
        }
 
     // 2 дороги
     num = getNumDevelopCARD(IMP_TYPE::ROAD2,0);
-    if (num) {
+    num_inactive = getNumDevelopCARD(IMP_TYPE::ROAD2, -1);
+    if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 114, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        text2.setPosition(develop_field_x + 110, develop_field_y - 8);
+        _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
+        if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
+        text2.setString(str); win->draw(text2);
         }
 
     //
     num = getNumDevelopCARD(IMP_TYPE::MONOPOLIA,0);
-    if (num) {
+    num_inactive = getNumDevelopCARD(IMP_TYPE::MONOPOLIA, -1);
+    if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::MONOPOLIA, develop_field_x + 150, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 164, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        text2.setPosition(develop_field_x + 160, develop_field_y - 8);
+        _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
+        if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
+        text2.setString(str); win->draw(text2);
         }
 
     //
     num = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2,0);
-    if (num) {
+    num_inactive = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, -1);
+    if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 214, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        text2.setPosition(develop_field_x + 210, develop_field_y - 8);
+        _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
+        if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
+        text2.setString(str); win->draw(text2);
         }
 
     //
     num = getNumDevelopCARD(IMP_TYPE::POINT1,0);
-    if (num) {
+    num_inactive = getNumDevelopCARD(IMP_TYPE::POINT1, -1);
+    if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 264, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
+        text2.setPosition(develop_field_x + 260, develop_field_y - 8);
+        _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
+        if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
+        text2.setString(str); win->draw(text2);
         }
 
-    //
-    num = getNumDevelopCARD(IMP_TYPE::KNIGHT,-1);
-    if (num) {
-        //0 в конце - прорисовать с локальным спрайтом - не уктивный рыцарь не может быть выбран мышкой
-        DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 300, develop_field_y + 10, 0.15,0);  
-        text2.setPosition(develop_field_x + 314, develop_field_y - 8);
-        _itoa_s(num, str, 10);    text2.setString(str); win->draw(text2);
-        }
 
     //------------- нижний ряд - сыгранные карты не выбираются мышкой --------------------------------------
     num = getNumDevelopCARD(IMP_TYPE::KNIGHT, 1);
