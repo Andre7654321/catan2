@@ -581,8 +581,8 @@ void Check_Connections(void)
 			//если идет игра , то нового игрока подключаем только если есть отвалившиес€
 			if (Game_Step.current_step > 0)
 				{
-					//если есть отвалившиес€
-					if (player[1].wait || player[2].wait || player[3].wait || player[4].wait)
+				  //если есть отвалившиес€
+				  if (player[1].wait || player[2].wait || player[3].wait || player[4].wait)
 					{
 						int ii;
 						for (ii = 1; ii < 5; ii++)
@@ -780,7 +780,7 @@ void ServerClientStreamFunc(int index)
 				int dice2 =  *intPtr;       //кубик кидалс€ на стороне клиента
 
 				flag_cubic_was_used = true;
-				std::cout << " –езультат броска  =  " << dice2 << std::endl;
+				//std::cout << " –езультат броска  =  " << dice2 << std::endl;
 
 				Info_Player_Last_Dice(TO_ALL, pl, dice2);
 				if (dice2 == 7) { Info_Dise_7(TO_ALL, pl);  continue; }
@@ -801,7 +801,7 @@ void ServerClientStreamFunc(int index)
 					for (auto& elem : develop_CARDS[Game_Step.current_active_player])
 					    { if (elem.status == -1 )  elem.status = 0;    }
 					Send_Develop_CARDS(TO_ALL, Game_Step.current_active_player);
-					std::cout << "SERVER  ѕередача хода игроку  " << Game_Step.current_active_player << std::endl;
+					//std::cout << "SERVER  ѕередача хода игроку  " << Game_Step.current_active_player << std::endl;
 					//Set_New_Move(TO_ALL);
 
 					InitChange_BANK();    //на сервере обнул€ем банки обмена
@@ -854,7 +854,7 @@ void ServerClientStreamFunc(int index)
 					 else  Game_Step.current_active_player = GetNextPlayer();
 				     }
 
-				mtx1.lock();  std::cout << "SERVER*  ѕередача хода игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
+				//mtx1.lock();  std::cout << "SERVER*  ѕередача хода игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
 				flag_cubic_was_used = false;
 				flag_develop_card_used = false;
 				Set_New_Move(TO_ALL);
@@ -962,16 +962,19 @@ void ServerClientStreamFunc(int index)
 			    {
 				int pl = index+1;
 				//проверить достаточность карт
-				if (ChangeBANK[pl][(int)RESURS::STONE] == 0 || ChangeBANK[pl][(int)RESURS::OVCA] == 0 || ChangeBANK[pl][(int)RESURS::BREAD] == 0)
+				if (player[pl].resurs[(int)RESURS::STONE] == 0 || player[pl].resurs[(int)RESURS::OVCA] == 0 || player[pl].resurs[(int)RESURS::BREAD] == 0)
 				    {
-					std::cout << "SERVER: Ќе хватает ресурсов " << std::endl;
+					//std::cout << "SERVER: Ќе хватает ресурсов " << std::endl;
 				    }
 				else
 				   {
 					//забрать карты у игрока и перенести в банк
-					ChangeBANK[pl][(int)RESURS::STONE] -= 1;  player[pl].resurs[(int)RESURS::STONE] -= 1;  CARD_Bank[(int)RESURS::STONE] += 1;
-					ChangeBANK[pl][(int)RESURS::OVCA] -= 1;  player[pl].resurs[(int)RESURS::OVCA] -= 1;   CARD_Bank[(int)RESURS::OVCA] += 1;
-					ChangeBANK[pl][(int)RESURS::BREAD] -= 1;  player[pl].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
+					if(ChangeBANK[pl][(int)RESURS::STONE] > 0)  ChangeBANK[pl][(int)RESURS::STONE] -= 1;
+					player[pl].resurs[(int)RESURS::STONE] -= 1;  CARD_Bank[(int)RESURS::STONE] += 1;
+					if (ChangeBANK[pl][(int)RESURS::OVCA] > 0) ChangeBANK[pl][(int)RESURS::OVCA] -= 1;
+					player[pl].resurs[(int)RESURS::OVCA] -= 1;   CARD_Bank[(int)RESURS::OVCA] += 1;
+					if (ChangeBANK[pl][(int)RESURS::BREAD] > 0) ChangeBANK[pl][(int)RESURS::BREAD] -= 1;
+					player[pl].resurs[(int)RESURS::BREAD] -= 1;  CARD_Bank[(int)RESURS::BREAD] += 1;
 
 					//получить тип карты развити€ из вектора
 					auto type = improve_CARDS.at(0).type;

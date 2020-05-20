@@ -17,7 +17,6 @@
 // sfml-graphics-d.lib;sfml-window-d.lib;sfml-system-d.lib;%(AdditionalDependencies)  рабочее
 // smfl-graphics-d.lib; smfl-window-d.lib; smfl - system - d.lib; % (AdditionalDependencies)   smfl-graphics.lib  smfl-graphics.lib
 
-
 std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
@@ -133,10 +132,15 @@ int main()
     while (window.isOpen())
     {
         //на 0 шаге не может быть ожидания переподключения
+        //тех кто висели в ожидании сбрасываем в дизконнект
         if (Game_Step.current_step == 0)
             {
             game_wait_reconnect = 0;
-            for (int ii = 0; ii < 7; ii++)  player[ii].wait = false;
+            for (int ii = 0; ii < 7; ii++)
+                {
+                if (player[ii].wait == true) player[ii].active = false;
+                player[ii].wait = false;
+                }
             }
         //если подключились отпавшие - разблокировать игру
         bool flag = false;
@@ -189,7 +193,7 @@ int main()
                 if (event.key.code == sf::Keyboard::Numpad2) { flag_draw_gecs_num ? flag_draw_gecs_num = false : flag_draw_gecs_num = true; }
 
                  //тестовый переход по F10   на 4 шаг для отладки
-                if (event.key.code == sf::Keyboard::F10 && player_num > 0)
+                if (event.key.code == sf::Keyboard::F10 && player_num > 0 && player[2].active == true && player[1].active == true)
                 {
                     std::cout << " Pressed F10  TEST "  << std::endl;
                     //добавляет ресурсов, ставит 1 и 2 игроку 2 города, позволяет нырнуть сразу на 4 шаг
@@ -213,6 +217,7 @@ int main()
                 //отслеживает факт нажатия SPACE - завершение хода
                 if (event.key.code == sf::Keyboard::Space && player_num == Game_Step.current_active_player)
                 {
+                    if (game_wait_reconnect) continue;
                     player[player_num].flag_allow_change = 0;   //запрет обменов
                     if (st == 4 && Game_Step.step[st].roll_2_dice == 0 && Game_Step.step[st].flag_bandit == 0)
                         {
@@ -300,6 +305,8 @@ int main()
             //если нажата клавиша мыши левая  
             if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
             {
+                if (game_wait_reconnect) continue;
+
                 //start
                 if (sprite_start.getGlobalBounds().contains(pixelPos.x, pixelPos.y) && player_num == Game_Step.current_active_player && st == 0)
                     {

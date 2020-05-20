@@ -90,8 +90,6 @@ void Game_Message(sf::RenderWindow* win, const  char* mess)
 }
 //----------------------------------------------------------------
 
-
-
 sf::Sprite bandit_sprite;
 int bandit_Gecs = -1;
 //================================================================
@@ -1046,7 +1044,7 @@ text2.setFillColor(sf::Color::White);
     num_inactive = getNumDevelopCARD(IMP_TYPE::KNIGHT, -1);
     if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::KNIGHT, develop_field_x + 50, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 60, develop_field_y - 8);
+        text2.setPosition(develop_field_x + 55, develop_field_y - 8);
         _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
         if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
         text2.setString(str); win->draw(text2);
@@ -1057,7 +1055,7 @@ text2.setFillColor(sf::Color::White);
     num_inactive = getNumDevelopCARD(IMP_TYPE::ROAD2, -1);
     if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::ROAD2, develop_field_x + 100, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 110, develop_field_y - 8);
+        text2.setPosition(develop_field_x + 105, develop_field_y - 8);
         _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
         if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
         text2.setString(str); win->draw(text2);
@@ -1068,7 +1066,7 @@ text2.setFillColor(sf::Color::White);
     num_inactive = getNumDevelopCARD(IMP_TYPE::MONOPOLIA, -1);
     if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::MONOPOLIA, develop_field_x + 150, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 160, develop_field_y - 8);
+        text2.setPosition(develop_field_x + 155, develop_field_y - 8);
         _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
         if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
         text2.setString(str); win->draw(text2);
@@ -1079,7 +1077,7 @@ text2.setFillColor(sf::Color::White);
     num_inactive = getNumDevelopCARD(IMP_TYPE::RESURS_CARD2, -1);
     if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::RESURS_CARD2, develop_field_x + 200, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 210, develop_field_y - 8);
+        text2.setPosition(develop_field_x + 205, develop_field_y - 8);
         _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
         if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
         text2.setString(str); win->draw(text2);
@@ -1090,7 +1088,7 @@ text2.setFillColor(sf::Color::White);
     num_inactive = getNumDevelopCARD(IMP_TYPE::POINT1, -1);
     if (num || num_inactive) {
         DrawDevelopCard(win, (int)IMP_TYPE::POINT1, develop_field_x + 250, develop_field_y + 10, 0.24,1);
-        text2.setPosition(develop_field_x + 260, develop_field_y - 8);
+        text2.setPosition(develop_field_x + 255, develop_field_y - 8);
         _itoa_s(num, str, 10);     _itoa_s(num_inactive, str1, 10);
         if (num_inactive > 0) { strcat_s(str, " + ");    strcat_s(str, str1); }
         text2.setString(str); win->draw(text2);

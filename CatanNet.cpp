@@ -318,7 +318,7 @@ void Say_Roll_2Dice()
 	Random_Number(0, 22);
 	rnum += Random_Number(1, 6);
 
-	std::cout << " Вы бросили  кубик =  " << rnum << std::endl;
+	//std::cout << " Вы бросили  кубик =  " << rnum << std::endl;
 
 	CATAN_CLIENT_Command(NET_COMMAND::ASK_ROLL_2DICE, (char*)&rnum, sizeof(int));
 	return;

@@ -154,8 +154,9 @@ bool isAnyAlienObjectNearGecs(int gecs,int pl)
 //===========================================================================									  
 bool isCardsDeletedAfterSeven()
 {
-    for (int i = 1; i < 5; i++)
+    for (int i = 1; i < 7; i++)
         {
+        if (player[i].active == false) continue;
         if (i == player_num) continue;
         if (limit_7[i] == 0)  continue;
         if (getPlayerNumCardResurs(i) > limit_7[i])  return false;
@@ -170,6 +171,7 @@ bool isCardsDeletedAfterSeven()
 int getPlayerNumCardResurs(int pl)
 {
     int sum = 0;
+    if (player[pl].active == false)  return 0;
 
     sum += player[pl].resurs[(int)RESURS::WOOD];
     sum += player[pl].resurs[(int)RESURS::STONE];
@@ -467,7 +469,7 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
 
     }
 
-    std::cout << "\n ===============Поле узлов CATAN FIELD ================ " << std::endl;
+    //std::cout << "\n ===============Поле узлов CATAN FIELD ================ " << std::endl;
     i = 0;
     //пронумеруем индексы узлов 
     for (auto& n : *PtrNode)
