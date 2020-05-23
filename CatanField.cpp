@@ -7,16 +7,22 @@
 #include "CatanField.h"
 #include "Catan_View.h"
 #include "Catan_Count.h"
+#include <algorithm>
 
+extern int Game_type;     //1 - Standart CATAN   2 - FISH
 
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
-extern PLAYER player[5];
+
+extern std::vector<GECS>  FishGecs;   //вектор рыбных отмелей
+extern std::vector<RESURS>  FishCards;  //вектор карточек с рыбами
+
+extern PLAYER player[7];
 extern int limit_7[5];
 extern int player_num;
-extern int CARD_Bank[10];
-extern int ChangeBANK[5][10];
+extern int CARD_Bank[12];
+extern int ChangeBANK[5][12];
 extern std::vector<IMP_CARD> develop_CARDS[5]; //карты развития игроков
 extern std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
 
@@ -27,25 +33,40 @@ extern int max_army;
 //размер 15 на 20 - универсальный для большого поля
 int CATAN19[15][20] =
 {
+    {           },  //  
     {   2,3,4   },   //   0, 1, 2
     {  2,3,4,5  },   //  3, 4, 5, 6
     { 1,2,3,4,5 },   // 7, 8, 9,10,11
     {  2,3,4,5  },   //  12,13,14,15
-    {   2,3,4   }    //   16,17,18
+    {   2,3,4   },    //   16,17,18
+    {           }    //   
+};
+//расположение гексов рыболовных отмелей
+int CATAN19_Fish[15][20] =
+{
+    {     3 },   //  
+    {   5   },   //   0, 1, 2
+    { 1     },   //  3, 4, 5, 6
+    {       },   // 7, 8, 9,10,11
+    { 1     },   //  12,13,14,15
+    {  5    },   //   16,17,18
+    {    4  }    // 
 };
 
-std::string resurs_name[10] =
+std::string resurs_name[12] =
 {
-   "empty",
+    "empty",
     "WOOD",
     "BRICKS",
     "BREAD",
     "STONE",
     "OVCA",
-    "PIRATE",
     "FISH1",
     "FISH2",
-    "FISH3"
+    "FISH3",
+    "BOOT",
+    "PIRATE",
+    "FISH_ALL"
 };
 
 
@@ -61,14 +82,19 @@ int GECS_POSITION[6][19] =
 };
 
 //в игре - камни 3.кирпичи 3, колос - 4. баран 4 дерево 4 разбойник 1
-RESURS Simple_Game[19] = { RESURS::PIRATE,
+std::vector<RESURS> Standart_Game = { RESURS::PIRATE,
                            RESURS::STONE,RESURS::STONE,RESURS::STONE,
                            RESURS::BRICKS,RESURS::BRICKS,RESURS::BRICKS,
                            RESURS::BREAD,RESURS::BREAD,RESURS::BREAD,RESURS::BREAD,
                            RESURS::OVCA,RESURS::OVCA,RESURS::OVCA,RESURS::OVCA,
                            RESURS::WOOD,RESURS::WOOD,RESURS::WOOD,RESURS::WOOD };
 
-
+std::vector<RESURS> Fish_Game = { RESURS::FISH1,
+                           RESURS::STONE,RESURS::STONE,RESURS::STONE,
+                           RESURS::BRICKS,RESURS::BRICKS,RESURS::BRICKS,
+                           RESURS::BREAD,RESURS::BREAD,RESURS::BREAD,RESURS::BREAD,
+                           RESURS::OVCA,RESURS::OVCA,RESURS::OVCA,RESURS::OVCA,
+                           RESURS::WOOD,RESURS::WOOD,RESURS::WOOD,RESURS::WOOD };
 
 //============================= класс PLAYER =====================================
 //class PLAYER
@@ -76,7 +102,7 @@ RESURS Simple_Game[19] = { RESURS::PIRATE,
     //int village = 5;
     //int town = 4;
     //int road = 15;
-    //int resurs[10];
+    //int resurs[12];
     //bool active = false;
 PLAYER::PLAYER()
 {
@@ -104,6 +130,10 @@ int numCardChange(int pl)
   num += ChangeBANK[pl][(int)RESURS::OVCA];
   num += ChangeBANK[pl][(int)RESURS::BRICKS];
   num += ChangeBANK[pl][(int)RESURS::BREAD];
+  num += ChangeBANK[pl][(int)RESURS::FISH1];
+  num += ChangeBANK[pl][(int)RESURS::FISH2];
+  num += ChangeBANK[pl][(int)RESURS::FISH3];
+  num += ChangeBANK[pl][(int)RESURS::BOOT];
 
    return num;
 }
@@ -224,10 +254,14 @@ void Step_Resurs(int dice2)
         if (nd.owner == -1)  continue;    //узел не застроен
 
         i = 0;
+        //основные гексы
         for (auto& g : *gecsPtr)
         {
-            if (CARD_Bank[(int)g.type] == 0) { i++; continue; }         //если ресурса нет, даже не рассматриваем
-            if (dice2 == g.gecs_game_number && abs(nd.n_x - g.x) < 25 && abs(nd.n_y - g.y) < 25 && g.type != RESURS::PIRATE)   
+         if (CARD_Bank[(int)g.type] == 0 && g.type != RESURS::FISH1)
+                    { i++; continue; }         //если ресурса нет, даже не рассматриваем
+
+         if ((dice2 == g.gecs_game_number || (g.type == RESURS::FISH1 && (dice2 == 2 || dice2 == 3 || dice2 == 11 || dice2 == 12)))
+                && abs(nd.n_x - g.x) < 25 && abs(nd.n_y - g.y) < 25 && g.type != RESURS::PIRATE)   
             {
              if (i == bandit_Gecs)    //пираты  стоят на гексе
                 {
@@ -239,21 +273,64 @@ void Step_Resurs(int dice2)
              if (nd.object == VILLAGE) num = 1;
              if (nd.object == TOWN) num = 2;
 
-             if(CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
-                else 
-                   {
-                    num -= 1;
-                    if (CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
-                       else continue;
-                   }
-
-             player[nd.owner].resurs[(int)g.type] += num;  //в банк игрока
-             ChangeBANK[nd.owner][(int)g.type] += num;     //в обменный банк игрока для инфо
-             //std::cout << "  Выдано " << num  <<  " resurs -  " << resurs_name[(int)g.type] << "  Игроку " << nd.owner << std::endl;
-            }
+             if (g.type != RESURS::FISH1)
+                 {
+                 if (CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
+                 else
+                     {
+                     num -= 1;
+                     if (CARD_Bank[(int)g.type] >= num)  CARD_Bank[(int)g.type] -= num;
+                     else continue;
+                     }
+                  player[nd.owner].resurs[(int)g.type] += num;  //в банк игрока
+                  ChangeBANK[nd.owner][(int)g.type] += num;     //в обменный банк игрока для инфо
+                  }
+             else
+                 {
+                 //забрать карточки рыб из общего вектора
+                 // добавить карточки рыб игроку
+                 while (num > 0) 
+                      {
+                      //более 8 карт рыб на руках не может быть, и то надо 1 скидывать
+                      if(player[nd.owner].resurs[(int)RESURS::FISH1] + player[nd.owner].resurs[(int)RESURS::FISH2] + player[nd.owner].resurs[(int)RESURS::FISH3] >= 8)  break;
+                      player[nd.owner].resurs[(int)FishCards.back()] += 1;
+                      ChangeBANK[nd.owner][(int)FishCards.back()] += 1;
+                      FishCards.pop_back();       //удаляем из основного банка
+                      num--;
+                      }
+                 }
+            } //if(dice == .......
         i++;
-        }  //for 2
-    }  //for 1
+        }  //for (auto& g : *gecsPtr)
+       
+        i = 0;
+        //гексы рыбных отмелей
+        for (auto& f : FishGecs)
+          {
+            if (dice2 == f.gecs_game_number  && abs(nd.n_x - f.x) < 25 && abs(nd.n_y - f.y) < 25)
+            {
+            //std::cout << " Рыб отмель Gesc " << i << " FISH NUM " << f.gecs_game_number << std::endl;
+            //std::cout << " Выдаст  FISH resurs " << (int)FishCards.back() << " |  " << resurs_name[(int)FishCards.back()] << std::endl;
+
+            num = 0;
+            if (nd.object == VILLAGE) num = 1;
+            if (nd.object == TOWN) num = 2;
+
+            while (num > 0)
+                {
+                //более 8 карт рыб на руках не может быть, и то надо 1 скидывать
+                if (player[nd.owner].resurs[(int)RESURS::FISH1] + player[nd.owner].resurs[(int)RESURS::FISH2] + player[nd.owner].resurs[(int)RESURS::FISH3] >= 8)  break;
+                player[nd.owner].resurs[(int)FishCards.back()] += 1;
+                ChangeBANK[nd.owner][(int)FishCards.back()] += 1;
+                FishCards.pop_back();       //удаляем из основного банка
+                num--;
+                }
+
+            i++;
+            }//if dice2
+
+          }
+    }  // for (auto& nd : *nodePtr)
 
     return;
 }
@@ -261,12 +338,11 @@ void Step_Resurs(int dice2)
 //========================================================================================
 // получить ресурсы 1 игроку на 3 шаге с окружающих переданную точку гексов
 //========================================================================================
-void Get_Resurs(int village_node,int player_num)
+void Get_Resurs(int village_node,int pl)
 {
     int x=0,y=0;
     
-    if (village_node < 0)
-    {   std::cout << " Ask resurs near  " << village_node  << std::endl;      return;   }
+    if (village_node < 0)     {   std::cout << " ERR Ask resurs near  " << village_node  << std::endl;      return;   }
     
     //определить координаты узла
     x = nodePtr->at(village_node).getNode_x();
@@ -274,15 +350,31 @@ void Get_Resurs(int village_node,int player_num)
 
     //std::cout << " Village Node  " << village_node << " x " << x << " y " << y << "  Player " << player_num << std::endl;
 
-//со всех гексов, до которых расстояние менее 3, получить по 1 ресурсу
+    //со основных гексов , до которых расстояние менее 3, получить по 1 ресурсу
     for (auto &g : *gecsPtr)
        {
         if (abs(x - g.x) < 25 && abs(y - g.y) < 25 && g.type != RESURS::PIRATE)
            {
-            CARD_Bank[(int)g.type] -= 1;
-            player[player_num].resurs[(int)g.type] += 1;
-            //std::cout << "  Выдан 1 resurs -  " << resurs_name[(int)g.type] << "  Игроку " << player_num  << std::endl;
+            if(g.type != RESURS::FISH1)   //не озеро
+                {
+                CARD_Bank[(int)g.type] -= 1;
+                player[pl].resurs[(int)g.type] += 1;
+                }
+            else 
+                {
+                player[pl].resurs[(int)FishCards.back()] += 1;
+                FishCards.pop_back();
+                }
            }
+       }
+    //гексы отмелей
+    for (auto& f : FishGecs)
+       {
+        if (abs(x - f.x) < 25 && abs(y - f.y) < 25)
+            {
+            player[pl].resurs[(int)FishCards.back()] += 1;
+            FishCards.pop_back();
+            }
        }
 
 return;
@@ -345,7 +437,7 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
  for (i = 0, ii = 0; i < 19; i++)
     {
      position = GECS_POSITION[coner][i];
-     if (PtrGecs->at(position).type != RESURS::PIRATE)
+     if (PtrGecs->at(position).type != RESURS::PIRATE && PtrGecs->at(position).type != RESURS::FISH1)
         {
          PtrGecs->at(position).gecs_game_number = game_number[ii++];  //ii индексируется только при присвоении
         }
@@ -359,32 +451,46 @@ void SetRandomGecsNumber19(std::vector<GECS>* PtrGecs)
 //=================================================================================================
 void SetRandomGecsType19(std::vector<GECS>* PtrGecs)
 {
- int i, ii;
+    std::vector<RESURS>* vPtr = nullptr;
+    if (Game_type == 1) vPtr = &Standart_Game;
+    if (Game_type == 2) vPtr = &Fish_Game;
 
-    //массив с видом и кол-вом ресурсов в начале этого файла Simple_Game[19]
-    for (i = 0; i < 19; i++)
-    {
-        //получить случайное число
-        ii = Random_Number(0,18);
-        //std::cout << "  step  \t " << i << " \trandom =  " << ii << "   \n";
+    //алгоритм библиотеки STL - сортировка массива случайным образом
+    random_shuffle(vPtr->begin(), vPtr->end());
 
-        while (true)   //цикл пока не попадем в свободное место под гекс
+    //гекс рыбалки не может быть у края поля
+    bool flag_OK = false;
+    while (Game_type == 2 && flag_OK == false)
         {
-           if (PtrGecs->at(ii).type == RESURS::EMPTY)
+        random_shuffle(vPtr->begin(), vPtr->end());
+        int i = 0;
+        for(auto elem : *vPtr)
+           {
+            if (elem == RESURS::FISH1 && (i == 4 || i == 5 || i == 8 || i == 9 || i == 10  || i == 13 || i == 14))   flag_OK = true;
+            i++;
+           }
+       }
+
+    int i = 0;
+    //проверить номера гексов у полей рират и рыбалка
+    for(auto elem : *vPtr)
+       {
+        PtrGecs->at(i).type  =  elem;
+        if (elem == RESURS::PIRATE) 
             {
-                PtrGecs->at(ii).type = Simple_Game[i];
-                if (Simple_Game[i] == RESURS::PIRATE)
-                    {
-                    //std::cout << " Bandit  Gecs N " <<  ii << " \n";
-                    bandit_Gecs = ii;
-                    }
-           
-                //std::cout << "  Gecs " << i << "  put in " << ii << " sell  \n";
-                break;
+            bandit_Gecs = i;  
+            PtrGecs->at(i).gecs_game_number = -1;
             }
-            else { if (++ii >= 19)   ii = 0; }
+        if (elem == RESURS::FISH1)
+        {
+            bandit_Gecs = -1;
+            PtrGecs->at(i).gecs_game_number = -1;
         }
-    }  //end for
+        ++i;
+       }
+
+    //выдать игровые номера гексам для сравнения с броском кубика
+    SetRandomGecsNumber19(PtrGecs);
     return;
 }
 
@@ -426,27 +532,41 @@ bool isVillageNear(int index)
 int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std::vector<ROAD>* PtrRoad)
 {
 
- //инициализация сетки расположения гексов ---------------------------------------------------------
+   roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
+   FishGecs.clear();    FishCards.clear();
+
+    //рыбные отмели перемешать
+    std::vector<int> fish_num = { 4,5,6,8,9,10 };
+    random_shuffle(fish_num.begin(), fish_num.end());
+
+    //инициализация сетки расположения гексов   присвоение координат   ---------------------
+    int n = 0;
     for (int ii = 0; ii < 15; ii++)
     {
         for (int i = 0; i < 20; i++)
         {
-            //пропускаем номера полей с нулевыми координатами
-            if (CATAN19[ii][i] == 0)  continue;    //по координате X == 0 не может быть расположения гекса
-
-            //По номеру гекса рассчитать его координаты
-            int x = (CATAN19[ii][i] * 4 - 2 * (ii % 2)) * 10;
-            int y = (ii * 3 + 2) * 10;     //номер ряда выступает в качестве координаты y для гекса
-
-            PtrGecs->push_back(GECS(x, y));  //добавляем в конец вектора
-
-            //std::cout << "  Gecs x = " << PtrGecs->at(i).getGecs_x() << "   Gecs y = " << PtrGecs->at(i).getGecs_y() << std::endl;
-            //std::cout << "  Vector size =  " << PtrGecs->size() << std::endl;
+         //пропускаем номера полей с нулевыми координатами
+         if (CATAN19[ii][i] == 0)  continue;    //по координате X == 0 не может быть расположения гекса
+         //По номеру гекса рассчитать его координаты
+         int x = ((CATAN19[ii][i]) * 4 - 2 * ((ii-1) % 2)) * 10;
+         int y = ((ii-1) * 3 + 2) * 10;     //номер ряда выступает в качестве координаты y для гекса
+         PtrGecs->push_back(GECS(x, y));  //добавляем в конец вектора основных гексов
+         //std::cout << "  Gecs x = " << PtrGecs->at(i).getGecs_x() << "   Gecs y = " << PtrGecs->at(i).getGecs_y() << std::endl;
+         //std::cout << "  Vector MAIN GECS size =  " << PtrGecs->size() << std::endl;
         }
+        //рыбные
+        for (int i = 0; i < 20; i++)
+        {
+            //пропускаем номера полей с нулевыми координатами
+            if (CATAN19_Fish[ii][i] == 0)  continue;    //по координате X == 0 не может быть расположения гекса
+            int x = ((CATAN19_Fish[ii][i]) * 4 - 2 * ((ii - 1) % 2)) * 10;
+            int y = ((ii - 1) * 3 + 2) * 10;     //номер ряда выступает в качестве координаты y для гекса
+            FishGecs.push_back(GECS(x, y));  //добавляем в конец вектора рыбных отмелей
+            FishGecs.back().gecs_game_number = fish_num[n++];
+        }   
     }
     //рандом расположение разных видов гексов для поля в 19 элементов
     SetRandomGecsType19(PtrGecs);
-    SetRandomGecsNumber19(PtrGecs);
 
     //вывод инфо по гексам -----------------------
     int i = 0;
@@ -455,15 +575,15 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
         //std::cout << i++ << "\tGecs x = " << elem.getGecs_x() <<  "\t|  y = " <<  elem.getGecs_y() << "  " << resurs_name[(int)elem.type] << std::endl;
         }
 
-    //по массиву гексов заполнить массив узлов поля --------------------------------------------------
+    //по массиву гексов создать массив узлов поля --------------------------------------------------
     int nx, ny;
     for (auto& elem : *PtrGecs)
     {
         //каждому гексу рассчитать 6 вершин
-        nx = elem.getGecs_x();        ny = elem.getGecs_y() - 20;  AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x();        ny = elem.getGecs_y() - 20;   AddNewNode(nx, ny, PtrNode);
         nx = elem.getGecs_x() + 20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
         nx = elem.getGecs_x() + 20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
-        nx = elem.getGecs_x();      ny = elem.getGecs_y() + 20;  AddNewNode(nx, ny, PtrNode);
+        nx = elem.getGecs_x();        ny = elem.getGecs_y() + 20;   AddNewNode(nx, ny, PtrNode);
         nx = elem.getGecs_x() - 20;   ny = elem.getGecs_y() + 10;   AddNewNode(nx, ny, PtrNode);
         nx = elem.getGecs_x() - 20;   ny = elem.getGecs_y() - 10;   AddNewNode(nx, ny, PtrNode);
 
@@ -546,18 +666,19 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
     improve_CARDS.insert(improve_CARDS.begin(), ttt);
     improve_CARDS.insert(improve_CARDS.begin(), ttt);
 
-    //перетасовать карты развития
-    for (int i = 0; i < 500; i++)
-        {
-        pos = Random_Number(0, improve_CARDS.size()-1);
-        //прочитать карту
-        ttt.status = improve_CARDS.at(pos).status;
-        ttt.type = improve_CARDS.at(pos).type;
-        //удалить карту
-        improve_CARDS.erase(improve_CARDS.begin() + pos);
-        //добавить в конец карту
-        improve_CARDS.push_back(ttt);
-        }
+    //алгоритм библиотеки STL - сортировка массива случайным образом
+    random_shuffle(improve_CARDS.begin(),improve_CARDS.end());
+
+    //========================  карточки с рыбами =================================================
+    //ботинок -1  по 1 рыбе - 11, по 2 рыбы 10, по 3 рыбы - 8
+    FishCards.clear();
+    FishCards.push_back(RESURS::BOOT);
+    for (pos = 0; pos < 11; pos++)  FishCards.push_back(RESURS::FISH1);
+    for (pos = 0; pos < 10; pos++)  FishCards.push_back(RESURS::FISH2);
+    for (pos = 0; pos < 8; pos++)  FishCards.push_back(RESURS::FISH3);
+
+    random_shuffle(FishCards.begin(), FishCards.end());
+    
 
    //================ Банк ресурсов ================================================================
    CARD_Bank[(int)RESURS::WOOD] = 19; 
@@ -569,6 +690,10 @@ int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std
    max_road_owner = 0;
    max_army = 0;
 
+   //std::cout << "  Vector Fish size =  " << FishGecs.size() << std::endl;
+   //std::cout << "  Vector road size =  " << roadPtr->size() << std::endl;
+   //std::cout << "  Vector node size =  " << nodePtr->size() << std::endl;
+   //std::cout << "  Vector Gect size =  " << gecsPtr->size() << std::endl;
     return 1;
 }
 
@@ -663,7 +788,8 @@ NODE::NODE() {};
 
     bool ROAD::isRoad_infocus(int mouse_x, int mouse_y, std::vector<NODE>* PtrNode)
         {
-        mouse_x = Game_x(mouse_x);  mouse_y = Game_y(mouse_y);
+        mouse_x = Game_x(mouse_x);  
+        mouse_y = Game_y(mouse_y);
         int r_x = (PtrNode->at(Node_num_start).n_x + PtrNode->at(Node_num_end).n_x)/2;
         int r_y = (PtrNode->at(Node_num_start).n_y + PtrNode->at(Node_num_end).n_y)/2;
         if (mouse_x > r_x - 10 && mouse_x < r_x + 10 && mouse_y > r_y - 10 && mouse_y < r_y + 10)  return true;

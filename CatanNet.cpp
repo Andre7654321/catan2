@@ -18,6 +18,7 @@
 #pragma warning(disable: 4996)
 
 extern SOCKET Connection;   //подключение клиента
+extern int Game_type;     //1 - Standart CATAN   2 - FISH
 
 //extern char addr_listen[20] = "192.168.2.39";
 //extern char addr_UDP[20] = " ";
@@ -51,21 +52,23 @@ extern bool flag_develop_card_used;  //сервер запоминает что карта развития уже 
 extern std::vector<GECS>* gecsPtr;    //указатель на вектор гексов
 extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
+extern std::vector<GECS>  FishGecs;   //вектор рыбных отмелей
+extern std::vector<RESURS>  FishCards;  //вектор карточек с рыбами
 
 extern PLAYER player[7];
 extern GAME_STEP Game_Step;
-extern int CARD_Bank[10];
+extern int CARD_Bank[12];
 extern CHANGE Change[12];       //сделки обмена игроков
 extern std::vector<IMP_CARD> improve_CARDS;
-extern std::vector<IMP_CARD> develop_CARDS[7];
+extern std::vector<IMP_CARD> develop_CARDS[5];
 extern int limit_7[7];
 
-extern std::string resurs_name[10];
+extern std::string resurs_name[12];
 extern int Big_Message;              //номер ресурса для вывода сообщения
 extern std::chrono::time_point<std::chrono::steady_clock>  start_Big_Message;
 
 //область обмена ресурсами
-extern int ChangeBANK[7][10];
+extern int ChangeBANK[7][12];
 
 
 //=======================================================
@@ -114,9 +117,9 @@ return;
 //=======================================================
 // запрос серверу перезапустить игру
 //=======================================================
-void Ask_Reset_Game()
+void Ask_Reset_Game(int game_type)
 {
-CATAN_CLIENT_Command(NET_COMMAND::ASK_RESET_GAME,nullptr,NULL);
+CATAN_CLIENT_Command(NET_COMMAND::ASK_RESET_GAME,(char *)&game_type,sizeof(int));
 return;
 }
 
@@ -165,7 +168,16 @@ bool AskBuyImproveCARD()
 }
 
 //=======================================================
-// Запрос забрать карту у игрока PL
+// Запрос на начало процедуры забрать карту у соперника
+//=======================================================
+void InfoTakeRandomCardFromPlayer()
+{
+	CATAN_CLIENT_Command(NET_COMMAND::INFO_TAKE_CARD_FROM_PLAYER,nullptr,NULL);
+	return;
+}
+
+//=======================================================
+// Запрос выплнить забор карты у игрока PL
 //=======================================================
 void AskTakeRandomCardFromPlayer(int pl)
 {
@@ -201,16 +213,7 @@ bool AskChangeWithBank(RESURS CARD_type)
 	int i;
 	int need_card;
 
-	//проверить есть ли в банке обмена нужное количество одинаковых карточек
-	bool flag = false;
-	for (i = 1; i < 10; i++)
-	{
-		need_card = 4;
-		if (bonus31(player_num))      need_card = 3;
-		if (bonus21(player_num, i))   need_card = 2;
-		if (ChangeBANK[player_num][i] >= need_card)  flag = true;
-	}
-	if (flag == false) { std::cout << " В банке нехватает ресурсов для обмена " << std::endl;  return false; }
+	//делегируем проверку достаточности ресурсов серверу, тут не делаем
 
 	//информируем банк о завершенных постройках в узлах
 	//так как бонус по картам мог появиться в процессе хода
@@ -329,7 +332,7 @@ void Say_Roll_2Dice()
 //=======================================================
 void Info_Player_Resurs()
 {
-CATAN_CLIENT_Command(NET_COMMAND::PLAYER_RESURS, (char*)&player[player_num].resurs, 10 * sizeof(int));
+CATAN_CLIENT_Command(NET_COMMAND::PLAYER_RESURS, (char*)&player[player_num].resurs, 12 * sizeof(int));
 return;
 }
 
@@ -358,6 +361,27 @@ void Info_Main_Bank()
 {
 CATAN_CLIENT_Command(NET_COMMAND::INFO_BANK_RESURS, (char*)&CARD_Bank[0], 10 * sizeof(int));
 return;
+}
+
+//========================================================
+// 
+//========================================================
+void Send_Fish_Vector_To_Server()
+{
+	int size = (2 + FishCards.size()) * sizeof(int);
+	char* buff = new char[size];
+	int* IntPtr;
+	IntPtr = (int*)buff;
+
+	*IntPtr = FishCards.size();	IntPtr++;
+	for (auto& elem : FishCards)
+	    {
+		*IntPtr++ = (int)elem;
+	    }
+
+	CATAN_CLIENT_Command(NET_COMMAND::INFO_FISH_CARDS, buff, size);
+	delete[] buff;
+	return;
 }
 
 //========================================================
@@ -407,6 +431,23 @@ void Ask_Send_Arrays()
 	return;
 }
 
+//-----------------------------------------------------------------------
+//=======================================================================
+// тиражированное сообщение всем что игрок собирается тянуть карту у соперника
+//=======================================================================
+void Send_To_All_Info_Take_Card(int pl)
+{
+ CATAN_SERVER_Command(NET_COMMAND::INFO_TAKE_CARD_FROM_PLAYER, (char*)&pl, sizeof(int), pl);
+}
+
+//=======================================================================
+// сообщение и типе игры
+//=======================================================================
+void Send_Info_Game_Type(int pl)
+{
+	CATAN_SERVER_Command(NET_COMMAND::GAME_TYPE,(char*)&Game_type,sizeof(int), pl);
+}
+
 //=======================================================================
 //отправка сделки на обмен от одного игрока другому
 //=======================================================================
@@ -434,6 +475,7 @@ void Send_To_All_Info_Resurs()
 
 	//общий банк карт развития
 	Send_Improve_CARDS(TO_ALL);
+	Send_Fish_CARDS(TO_ALL);
 
 	//ресурсы каждого игрока
 	for (int i = 1; i < 7; i++)  Send_Player_CARDS(TO_ALL, i);
@@ -461,6 +503,27 @@ void Send_Improve_CARDS(int pl)
 	    }
 
 	CATAN_SERVER_Command(NET_COMMAND::INFO_IMP_CARDS, buff, size, pl);
+	delete[] buff;
+	return;
+}
+
+//=======================================================================
+//отправка вектора карт рыб от сервера 
+//=======================================================================
+void Send_Fish_CARDS(int pl)
+{
+	int size = (2 + FishCards.size()) * sizeof(int);
+	char* buff = new char[size];
+	int* IntPtr;
+	IntPtr = (int*)buff;
+
+	*IntPtr = FishCards.size();	IntPtr++;
+	for (auto& elem : FishCards)
+	    {
+		*IntPtr++ = (int)elem;
+	   }
+
+	CATAN_SERVER_Command(NET_COMMAND::INFO_FISH_CARDS, buff, size, pl);
 	delete[] buff;
 	return;
 }
@@ -579,14 +642,14 @@ void Send_Player_Objects(int pl, int nplayer)
 //=======================================================================
 void Send_Player_CARDS(int pl,int nplayer)
 {
-	char buff[11* sizeof(int)];
+	char buff[13* sizeof(int)];
 	int* IntPtr;
 	IntPtr = (int*)buff;
 
 	*IntPtr = nplayer;	IntPtr++;
-	memcpy(IntPtr, player[nplayer].resurs, 10 * sizeof(int)); 
+	memcpy(IntPtr, player[nplayer].resurs, 12 * sizeof(int)); 
 
-	CATAN_SERVER_Command(NET_COMMAND::PLAYER_RESURS, buff, 11 * sizeof(int), pl);
+	CATAN_SERVER_Command(NET_COMMAND::PLAYER_RESURS, buff, 13 * sizeof(int), pl);
 	return;
 }
 
@@ -656,20 +719,26 @@ void Send_Bandit_GECS(int pl)
 void Send_Field_GECS(int pl)
 {
  //по 4 int значения на гекс
- int size = (*gecsPtr).size() * sizeof(int) * 4;
+ int size = (*gecsPtr).size() * sizeof(int) * 4 + FishGecs.size() * sizeof(int) * 4;
  char* buff = new char[size];
 
  int* IntPtr;
  IntPtr = (int*)buff;
  
- for(auto elem : *gecsPtr)
+ for(auto& elem : *gecsPtr)
      {
 	  //std::cout << "SERVER type gecs = " << resurs_name[(int)elem.type] << std::endl;
 	  *IntPtr++ = elem.x;              *IntPtr++ = elem.y;
 	  *IntPtr++ = (int)elem.type;      *IntPtr++ = elem.gecs_game_number;
      }
+
+ for (auto& elem : FishGecs)
+     {
+	 *IntPtr++ = elem.x;              *IntPtr++ = elem.y;
+	 *IntPtr++ = (int)elem.type;      *IntPtr++ = elem.gecs_game_number;
+     }
 	
-	CATAN_SERVER_Command(NET_COMMAND::SET_GECS,buff,size,pl);
+  CATAN_SERVER_Command(NET_COMMAND::SET_GECS,buff,size,pl);
 
  delete[] buff;
  return;
@@ -706,15 +775,15 @@ void Send_Info_Nodes_Zip(int pl)
 	char* buff = new char[max_size];
 
 	int* IntPtr;
-	IntPtr = (int*)buff; IntPtr++;
+	IntPtr = (int*)buff;     IntPtr++;   //?????????????????????????   ++
 
-	for (auto node : *nodePtr) 
+	for (auto& node : *nodePtr) 
 	     {
 		if (node.owner > 0)
 		    {
-			*IntPtr++ = node.number;
-			*IntPtr++ = node.owner;
-			*IntPtr++ = node.object;
+			*IntPtr = node.number;  IntPtr++;
+			*IntPtr = node.owner;   IntPtr++;
+			*IntPtr = node.object;  IntPtr++;
 			size += 3;
 		    }
 	     }

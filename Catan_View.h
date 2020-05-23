@@ -10,7 +10,8 @@ void DrawNodes(sf::RenderWindow*, std::vector<NODE>*);
 void DrawNodesInfo(sf::RenderWindow*, std::vector<NODE>*);
 void DrawRoads(sf::RenderWindow*, std::vector<NODE>*, std::vector<ROAD>*);
 void DrawRoadsNet(sf::RenderWindow*, std::vector<NODE>*, std::vector<ROAD>*);
-void DrawCard(sf::RenderWindow*,int, int, int, float);
+void DrawCard(sf::RenderWindow* win, int Type, int x, int y, float scale, sf::Sprite* spritePtr);
+void DrawCard_NoSprate(sf::RenderWindow* win, int Type, int x, int y, float scale);
 void DrawDevelopCard(sf::RenderWindow*, int Type, int x, int y, float scale, int status);
 void Draw_Develop_Cards_Field(sf::RenderWindow*);
 int  getNumDevelopCARD(IMP_TYPE, int);
@@ -34,6 +35,7 @@ void DrawBanditOnCoord(sf::RenderWindow* , int, int, float);
 void Draw_MaxWay(sf::RenderWindow*, int, int, float scale);
 void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale);
 
+void DrawBigMessageBuff(sf::RenderWindow* win);
 void Big_Message_Imp_Card(sf::RenderWindow* ,int);
 void Game_Message(sf::RenderWindow* win,const char* mess);
 

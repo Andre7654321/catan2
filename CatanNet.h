@@ -8,55 +8,60 @@
 #include <winsock2.h>
 
 //server  send  ====================================================
-void Set_Player_Number(int num);     //new style
-void Send_Field_GECS(int pl);        //new style
-void Send_Bandit_GECS(int pl);       //new style
-void Send_Connected_Players(int pl); //new style
-void Set_Game_Step(int pl);          //new style
-void Set_New_Move(int pl);           //new style
-void Send_Info_Nodes(int pl);        //new style
-void Send_Info_Nodes_Zip(int pl);    //new style
+void Set_Player_Number(int num);     //
+void Send_Field_GECS(int pl);        //
+void Send_Bandit_GECS(int pl);       //
+void Send_Connected_Players(int pl); //
+void Set_Game_Step(int pl);          //
+void Set_New_Move(int pl);           //
+void Send_Info_Nodes(int pl);        //
+void Send_Info_Nodes_Zip(int pl);    //
 
-void Send_Info_Roads(int pl);        //new style
-void Send_Bank_Resurs(int pl);       //new style
-void Send_Player_CARDS(int pl, int nplayer);   //new style
-void Send_Player_Objects(int pl, int nplayer); //new style
-void Info_Dise_7(int pl, int npl);             //new style
-void Info_Play_Develop_Card(int pl, int npl, int type);      //new style
-void Info_Player_Last_Dice(int pl, int npl, int dice);       //new style
-void Send_To_All_Info_MaxWayArmy(int pl);                    //new style
-void Send_Info_Change_Area(int pl, int npl);          //new style
-void Send_Develop_CARDS(int pl, int npl);      //new style
-void Send_Improve_CARDS(int pl);               //new style
-void Send_To_All_Info_Resurs();                //new style
-void Send_Info_Change(int pl, int s);          //new style
+void Send_Info_Roads(int pl);        //
+void Send_Bank_Resurs(int pl);       //
+void Send_Player_CARDS(int pl, int nplayer);   //
+void Send_Player_Objects(int pl, int nplayer); //
+void Info_Dise_7(int pl, int npl);            
+void Info_Play_Develop_Card(int pl, int npl, int type);   
+void Info_Player_Last_Dice(int pl, int npl, int dice);   
+void Send_To_All_Info_MaxWayArmy(int pl);      
+void Send_Info_Change_Area(int pl, int npl);  
+void Send_Develop_CARDS(int pl, int npl);  
+void Send_Fish_CARDS(int pl);
+void Send_Improve_CARDS(int pl);             
+void Send_To_All_Info_Resurs();         
+void Send_Info_Change(int pl, int s);  
+void Send_Info_Game_Type(int pl);
+void Send_To_All_Info_Take_Card(int pl);
 
 //====================================================================
 
-void Ask_Send_Arrays();             //new style
-void Send_roads();                  //new style
-void Send_nodes();                  //new style
-void Info_Main_Bank();              //new style
-void Player_Objects_To_Server();    //new style
-void Info_Player_Resurs();          //new style 
-void Say_Roll_Start_Dice();         //new style 
-void Say_Roll_2Dice();              //new style
-void Say_Move_Over();               //new style
-void Ask_Send_Resurs();             //new style
-void Say_Move_Banditos();           //new style
-void Info_Change_Bank();            //new style
-void Ask_Send_Objects();            //new style
-bool AskChangeWithBank(RESURS);     //new style
-void AskSendCardsToBank();          //new style
-void Say_Start();                   //new style
-void AskTakeRandomCardFromPlayer(int);  //new style
-bool AskBuyImproveCARD();           //new style
-void AskPlayDevelopCard(IMP_TYPE);  //new style
-void Ask_Reset_Game();              //new style
-void Test_Game();                   //new style
-void AskChangeWithPlayer(int);      //new style
+void Ask_Send_Arrays();     
+void Send_roads();                 
+void Send_nodes();                 
+void Info_Main_Bank();             
+void Player_Objects_To_Server();    
+void Info_Player_Resurs();       
+void Say_Roll_Start_Dice();      
+void Say_Roll_2Dice();           
+void Say_Move_Over();           
+void Ask_Send_Resurs();       
+void Say_Move_Banditos();        
+void Info_Change_Bank();          
+void Ask_Send_Objects();          
+bool AskChangeWithBank(RESURS);   
+void AskSendCardsToBank();         
+void Say_Start();                 
+void AskTakeRandomCardFromPlayer(int); 
+bool AskBuyImproveCARD();         
+void AskPlayDevelopCard(IMP_TYPE);  
+void Ask_Reset_Game(int game_type);
+void Test_Game();                 
+void AskChangeWithPlayer(int);      
 void AskToDeleteOffer(int);
 void AskToAcceptOffer(int);
+void InfoTakeRandomCardFromPlayer();
+void Send_Fish_Vector_To_Server();
 
 //--------------------------------------------------------------------
 //  use  old  packets

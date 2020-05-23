@@ -29,7 +29,7 @@ GAME_STEP::GAME_STEP()
 }
 
 extern GAME_STEP Game_Step;
-extern PLAYER player[5];
+extern PLAYER player[7];
 
 
 
@@ -41,7 +41,7 @@ int SetFirstPlayer()
 	int pl, i;
 
   //pl = 1 так как при старте игры первый подключенный бросает кубик первым
-  for (pl = 1,i = 1; i < 5; i++)
+  for (pl = 1,i = 1; i < 7; i++)
 	{
 	if (player[i].active == true && player[i].first_roll > player[pl].first_roll)
 	    {

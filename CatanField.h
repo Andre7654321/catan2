@@ -38,16 +38,18 @@ public:
 //перечисление видов ресурсов
 enum class RESURS
 {
-	EMPTY,
+	EMPTY,  //0
 	WOOD,
 	BRICKS,
 	BREAD,
 	STONE,
 	OVCA,
-	PIRATE,
-	FISH1,
+	FISH1,  //6
 	FISH2,
-	FISH3
+	FISH3,
+	BOOT,  //9
+	PIRATE,
+	FISH_ALL
 };
 
 #define VILLAGE 1
@@ -59,8 +61,8 @@ struct CHANGE
  int status = 0;
  int from_pl = 0;
  int to_pl = 0;
- int offer_num[6]  {0};
- int need_num[6]  {0};
+ int offer_num[10]  {0};
+ int need_num[10]  {0};
 };
 
 //структура банка ресурсов - где хранятся карточки ресурсов
@@ -68,7 +70,7 @@ struct CHANGE
 struct bank
 {
 public:
-	int resurs[10];
+	int resurs[12];
 };
 
 //============================= класс PLAYER =====================================
@@ -78,7 +80,7 @@ public:
 	int village = 5;
 	int town = 4;
 	int road = 15;
-	int resurs[10];
+	int resurs[12];
 	bool active = false;
 	int first_roll = 0;
 	int last_village_node = -1;
@@ -157,4 +159,5 @@ public:
 };   //============================= GAME_ROADS   end =============================================
 
 int Init_CATAN_Field(std::vector<GECS>*, std::vector<NODE>*, std::vector<ROAD>*);
+void SetRandomGecsType19(std::vector<GECS>* PtrGecs);
 #endif

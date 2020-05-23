@@ -4,10 +4,64 @@
 #include <cstdlib>
 #include <string.h>
 #include <vector>
+#include <list>
 #include <iterator>
+#include <algorithm>
 
 #include "CatanField.h"
 #include "Catan_View.h"
+
+extern PLAYER player[7];
+extern std::vector<RESURS>  FishCards;
+extern int ChangeBANK[7][12];
+
+using namespace std;
+
+//=================================================================================mytest
+int test()
+{
+
+	return 0;
+
+	vector<int> mylist = { 20,10,10,10,10};
+	mylist.push_back(1);
+	mylist.push_back(2);
+	mylist.push_back(3);
+	mylist.push_back(4);
+	mylist.push_back(5);
+	mylist.push_back(6);
+
+	mylist.emplace_back(8);
+
+	auto result = find_if(mylist.begin(), mylist.end(), [](int a)
+		{
+			return  a > 0;
+		});
+
+	if(result == mylist.end())
+	  {
+
+		std::cout << " нет чисел > 0 в массиве " << std::endl;
+	  }
+	else  std::cout << " есть чисел > 0 в массиве " << std::endl;
+
+	//mylist.sort();
+
+	std::cout << " ================ mylist ====++========" << std::endl;
+	int i = 0;
+	for (auto elem : mylist)
+	  {
+		std::cout << i++ << "    data =  " << elem << std::endl;
+	  }
+	std::cout << " ================ end list ============" << std::endl << std::endl;
+
+	//list<int>::iterator it1 = mylist.begin();
+	//auto it2 = mylist.end();
+
+	//std::cout << " it1 = "  <<  *it1  << " it2 = " << *it2 << std::endl << std::endl;
+
+	return 1;
+}
 
 //===================================================================================
 //= Вычисления по массивам узлов и дорог CATAN2   7 may 
@@ -17,6 +71,85 @@ extern std::vector<NODE>* nodePtr;    //указатель на вектор узлов поля
 extern std::vector<ROAD>* roadPtr;    //указатель на вектор дорог
 
 extern int player_num;
+
+//===========================================================================
+// забрать рыб из банка обмена игрока и перенести карточки в общий банк
+//===========================================================================
+bool Get_Fish_From_Player(int pl,int num)
+{
+ int i = 0;
+ while (num > 0 && i < 30)
+     {
+	 i++;    //защита от бесконечного цикла
+	 if (ChangeBANK[pl][(int)RESURS::FISH3] > 0 && num >= 3)
+	      {
+		  player[pl].resurs[(int)RESURS::FISH3] -= 1;
+		  ChangeBANK[pl][(int)RESURS::FISH3] -= 1;
+		  num -= 3;
+		  //добавить эту карту в вектор карточек рыб в начало
+		  auto it = FishCards.begin();
+		  FishCards.insert(it, RESURS::FISH3);
+		  continue;
+	      }
+	 if (ChangeBANK[pl][(int)RESURS::FISH2] > 0 && num >= 2)
+	     {
+		 player[pl].resurs[(int)RESURS::FISH2] -= 1;
+		 ChangeBANK[pl][(int)RESURS::FISH2] -= 1;
+		 num -= 2;
+		 //добавить эту карту в вектор карточек рыб в начало
+		 auto it = FishCards.begin();
+		 FishCards.insert(it, RESURS::FISH2);
+		 continue;
+	     }
+	 if (ChangeBANK[pl][(int)RESURS::FISH1] > 0 && num >= 1)
+	     {
+		 player[pl].resurs[(int)RESURS::FISH1] -= 1;
+		 ChangeBANK[pl][(int)RESURS::FISH1] -= 1;
+		 num -= 1;
+		 //добавить эту карту в вектор карточек рыб в начало
+		 auto it = FishCards.begin();
+		 FishCards.insert(it, RESURS::FISH1);
+		 continue;
+	     }
+	 if (ChangeBANK[pl][(int)RESURS::FISH2] > 0 && num >= 1)
+	     {
+		 player[pl].resurs[(int)RESURS::FISH2] -= 1;
+		 ChangeBANK[pl][(int)RESURS::FISH2] -= 1;
+		 num -= 2;
+		 //добавить эту карту в вектор карточек рыб в начало
+		 auto it = FishCards.begin();
+		 FishCards.insert(it, RESURS::FISH2);
+		 continue;
+	     }
+	 if (ChangeBANK[pl][(int)RESURS::FISH3] > 0 && num >= 1)
+	     {
+		 player[pl].resurs[(int)RESURS::FISH3] -= 1;
+		 ChangeBANK[pl][(int)RESURS::FISH3] -= 1;
+		 num -= 2;
+		 //добавить эту карту в вектор карточек рыб в начало
+		 auto it = FishCards.begin();
+		 FishCards.insert(it, RESURS::FISH3);
+		 continue;
+	     }
+     }
+
+ if(i >= 30 || num > 0) return false;
+ return true;
+}
+
+//===========================================================================
+// считает рыб в банке обмена игрока
+//===========================================================================
+int Count_Fish_In_Change(int pl)
+{
+	int num_fish = 0;
+
+	num_fish += ChangeBANK[pl][(int)RESURS::FISH1];
+	num_fish += ChangeBANK[pl][(int)RESURS::FISH2] * 2;
+	num_fish += ChangeBANK[pl][(int)RESURS::FISH3] * 3;
+
+	return num_fish;
+}
 
 bool flag_start = false;
 //===========================================================================
