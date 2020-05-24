@@ -86,6 +86,7 @@ std::map<NET_COMMAND, std::string> Map_Command =
 	{NET_COMMAND::SET_CLOSE,           "zCATANz SET_CLOSE"},
 	{NET_COMMAND::GAME_TYPE,           "zCATANz GAME_TYPE"},
 	{NET_COMMAND::INFO_FISH_CARDS,     "zCATANz INFO_FISH_CARDS"},
+	{NET_COMMAND::GAME_OVER,           "zCATANz GAME_OVER"},
 	
 	
 };
@@ -863,7 +864,17 @@ void ServerClientStreamFunc(int index)
 				//mtx1.lock();  std::cout << "SERVER*  Передача хода игроку  " << Game_Step.current_active_player << std::endl;  mtx1.unlock();
 				flag_cubic_was_used = false;
 				flag_develop_card_used = false;
-				Set_New_Move(TO_ALL);
+
+				//если бвзовая игра, то при 10 очках объявляется победа
+				if((Game_type == 1 && CountScore(pl) >= 10) || 
+					(Game_type == 2 && CountScore(pl) >= 11 && player[pl].resurs[(int)RESURS::BOOT] == 0) ||
+					(Game_type == 2 && CountScore(pl) >= 12 && player[pl].resurs[(int)RESURS::BOOT] == 1))
+				       {
+					   Set_Game_OVER(pl);
+					   Game_Step.current_step = 5;
+					   Set_Game_Step(TO_ALL);
+				       }
+				else 	Set_New_Move(TO_ALL);
 			    }
 			if (New_Command == NET_COMMAND::LAST_VILLAGE)
 			    {
@@ -1125,22 +1136,39 @@ void ServerClientStreamFunc(int index)
 
 				//std::cout << " Change SET command from   "  <<  pl << "  to "  << pl_change  << std::endl;
 				//заполнить на основе банков обмена игроков структуру сделки
-				//найти не активную сделку
-				int s = 0;
-				for (s = 0; s < 12; s++) { if (Change[s].status == 0) break; }
-				if (s < 12)
-				    {
-					Change[s].from_pl = pl; 		Change[s].to_pl = pl_change;    Change[s].status = 1;
-					for (int t = 0; t < 10; t++)    //цикл по типу ресурса
+				//проверить есть ли в сделке ботинок
+				if(ChangeBANK[pl][(int)RESURS::BOOT]) 
+				     {
+					  //передать ботинок получателю
+					  ChangeBANK[pl][(int)RESURS::BOOT] = 0; player[pl].resurs[(int)RESURS::BOOT] = 0;
+					  ChangeBANK[pl_change][(int)RESURS::BOOT] = 1; player[pl_change].resurs[(int)RESURS::BOOT] = 1;
+					  //вывести сообщение о передаче ботинка всем
+
+					  //переслать всем состоние банка обмена
+					 Send_Info_Change_Area(TO_ALL, pl);
+					 Send_Info_Change_Area(TO_ALL, pl_change);
+					 Send_To_All_Info_Resurs();
+
+				     }
+				else
+				   {
+					//найти не активную сделку
+					int s = 0;
+					for (s = 0; s < 12; s++) { if (Change[s].status == 0) break; }
+					if (s < 12)
 					    {
-						//рыб пропускаем
-						if (t == (int)RESURS::FISH1 || t == (int)RESURS::FISH2 || t == (int)RESURS::FISH3)  continue;
-						Change[s].offer_num[t] = (int)ChangeBANK[pl][t];
-						Change[s].need_num[t] = (int)ChangeBANK[pl_change][t];
-					    }
-					//передать говоую сделку все игрокам
-					Send_Info_Change(TO_ALL, s);
-				    }
+						Change[s].from_pl = pl; 		Change[s].to_pl = pl_change;    Change[s].status = 1;
+						for (int t = 0; t < 10; t++)    //цикл по типу ресурса
+						    {
+							//рыб пропускаем
+							if (t == (int)RESURS::FISH1 || t == (int)RESURS::FISH2 || t == (int)RESURS::FISH3)  continue;
+							Change[s].offer_num[t] = (int)ChangeBANK[pl][t];
+							Change[s].need_num[t] = (int)ChangeBANK[pl_change][t];
+						    }
+						//передать говоую сделку все игрокам
+						Send_Info_Change(TO_ALL, s);
+					    } //if
+				    } //else
 			    }
 			if (New_Command == NET_COMMAND::ASK_DELETE_OFFER)
 			    {
@@ -1569,6 +1597,17 @@ void ClientHandler(int index)
 							  if (player[i].active && i != pl)  player[i].flag_allow_get_card = 1;
 					      }
 				      }
+				 if(Serv_Command == NET_COMMAND::GAME_OVER)
+				     {
+					 int* intPtr = (int*)buff_tmp;
+					 int pl = *intPtr;      //номер игрока
+
+					 strcpy(BuffBigMessage, "GAME Over, Player ");
+					 _itoa_s(pl, msg, 10);
+					 strcat(BuffBigMessage, msg);   strcat(BuffBigMessage, "win");
+					 Big_Message = 10;
+					 start_Big_Message = std::chrono::high_resolution_clock::now();
+				     }
 
 				 if(buff_tmp != nullptr)  delete[] buff_tmp;
 				 //================================================================
@@ -1711,7 +1750,7 @@ int ClientChart()
 {
 	char msg1[256];
 
-	Sleep(30);   //попытка избежать ошибки запуска потока 
+	Sleep(30);   // избежать ошибки запуска потока 
 	while (true)
 	{
 		std::cin.getline(msg1, sizeof(msg1));

@@ -236,7 +236,7 @@ int main()
                 //F1  перезапуск стандартной игры
                 if (event.key.code == sf::Keyboard::F1)
                     {
-                    if (player_num == 1 && player_num == Game_Step.current_active_player)  Ask_Reset_Game(1);
+                    if (player_num == 1 && (player_num == Game_Step.current_active_player || Game_Step.current_step == 5))  Ask_Reset_Game(1);
                     }
 
                 //F2 перезапуск игра рыбаки катана
@@ -244,7 +244,7 @@ int main()
                  {
                      if (player_num == 0)      //сервер для отладки
                          {    Game_type = 2;    Init_CATAN_Field(&Gecs, &Field, &Roads);  }
-                     if (player_num == 1 && player_num == Game_Step.current_active_player)       {  Ask_Reset_Game(2);  }
+                     if (player_num == 1 && (player_num == Game_Step.current_active_player || Game_Step.current_step == 5))     {  Ask_Reset_Game(2);  }
                  }
                 
                 //F10 забрать карточку у соперника за 3 рыбы

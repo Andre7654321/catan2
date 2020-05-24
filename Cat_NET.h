@@ -62,6 +62,7 @@ enum class NET_COMMAND
 	SET_CLOSE,
 	GAME_TYPE,
 	INFO_FISH_CARDS,
+	GAME_OVER,
 };
 #define MY_PORT 2489
 #define TO_ALL  0

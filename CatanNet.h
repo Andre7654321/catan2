@@ -36,6 +36,7 @@ void Send_To_All_Info_Take_Card(int pl);
 
 //====================================================================
 
+void Set_Game_OVER(int pl);
 void Ask_Send_Arrays();     
 void Send_roads();                 
 void Send_nodes();                 
