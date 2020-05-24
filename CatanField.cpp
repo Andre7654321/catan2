@@ -29,6 +29,7 @@ extern std::vector<IMP_CARD> improve_CARDS;    //банк карт развития
 extern int bandit_Gecs;
 extern int max_road_owner;
 extern int max_army;
+extern int max_gavan;
 
 //размер 15 на 20 - универсальный для большого поля
 int CATAN19[15][20] =
@@ -229,6 +230,7 @@ int CountScore(int pl)
  //дорога
  if (max_road_owner == pl) score += 2;
  if (max_army == pl) score += 2;
+ if (max_gavan == pl) score += 2;
 
  //карточки развития - очки
  for (auto& elem : develop_CARDS[pl])
@@ -531,6 +533,10 @@ bool isVillageNear(int index)
 //==================================================================================================
 int Init_CATAN_Field(std::vector<GECS>* PtrGecs, std::vector<NODE>* PtrNode, std::vector<ROAD>* PtrRoad)
 {
+
+    srand(time(NULL));
+    int nn = rand() % 20;
+    for (int i = 0; i < nn; i++)  rand();
 
    roadPtr->clear();	nodePtr->clear();	gecsPtr->clear();
    FishGecs.clear();    FishCards.clear();

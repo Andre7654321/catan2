@@ -40,6 +40,7 @@ extern int player_num;
 extern int bandit_Gecs;
 extern int max_road_owner;
 extern int max_army;        //владелец карточки самое большое войско
+extern int max_gavan;
 
 extern int Play_two_roads;     //флаг игры карты развития 2 дороги
 extern int Play_two_resurs;    //флаг игры карты развития 2 ресурса
@@ -580,14 +581,15 @@ void Send_Info_Change_Area(int pl,int npl)
 //=======================================================================
 void Send_To_All_Info_MaxWayArmy(int pl)
 {
-	char buff[2 * sizeof(int)];
+	char buff[3 * sizeof(int)];
 	int* IntPtr;
 
 	IntPtr = (int*)buff;
 	*IntPtr = max_road_owner;	IntPtr++;
-	*IntPtr = max_army;
+	*IntPtr = max_army;         IntPtr++;
+	*IntPtr = max_gavan;
 
-	CATAN_SERVER_Command(NET_COMMAND::MAX_WAY_ARMY_OWNER, buff, 2 * sizeof(int), pl);
+	CATAN_SERVER_Command(NET_COMMAND::MAX_WAY_ARMY_OWNER, buff, 3 * sizeof(int), pl);
 }
 
 //=======================================================

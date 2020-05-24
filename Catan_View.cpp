@@ -17,6 +17,7 @@ extern int limit_7[7];
 extern int player_num;
 extern int max_road_owner;
 extern int max_army;        //владелец карточки самое большое войско
+extern int max_gavan;
 
 extern int Play_two_roads;     //флаг игры карты развития 2 дороги
 extern int Play_two_resurs;
@@ -457,11 +458,14 @@ void DrawChangeBank(sf::RenderWindow* win,int x,int y,int pl)
           }
     }
 
- //карты войска и длинной дороги
+ //карты войска, длинной дороги, гавань, башмак
+ place = 0;
  if (pl != player_num)
      {
-     if (max_road_owner == pl)  Draw_MaxWay(win, x + 80 + 25 * place, y + 90, 0.2);
-     if (max_army == pl)  Draw_MaxArmy(win, x + 120 + 25 * place, y + 90, 0.09);
+     if (max_road_owner == pl)  Draw_MaxWay(win, x + 80 + 25 * place++, y + 95, 0.2);
+     if (max_army == pl)  Draw_MaxArmy(win, x + 80 + 25 * place++, y + 95, 0.09);
+     if (max_gavan == pl)  Draw_MaxGavan(win, x + 80 + 25 * place, y + 95, 0.09);
+     if(player[pl].resurs[(int)RESURS::BOOT])  DrawCard_NoSprate(win, (int)RESURS::BOOT, x + 80 + 25 * place++, y + 95, 0.16);
      }
 
  //сами ресурсы рубашкой в зоне обмена
@@ -1227,7 +1231,7 @@ text2.setFillColor(sf::Color::White);
 }
 
 //================================================================
-//  прорисовка банка ресурсов - карточек ресурсов
+//  прорисовка 
 //================================================================
 void Draw_MaxWay(sf::RenderWindow* win,int x,int y,float scale)
 {
@@ -1243,7 +1247,7 @@ void Draw_MaxWay(sf::RenderWindow* win,int x,int y,float scale)
 }
 
 //================================================================
-//  прорисовка банка ресурсов - карточек ресурсов
+//  прорисовка карточки армии
 //================================================================
 void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale)
 {
@@ -1251,6 +1255,22 @@ void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale)
     sf::Texture texture;
 
     texture.loadFromFile("img/Max_army.png");
+    sprite.setTexture(texture);
+
+    sprite.setScale(scale, scale);
+    sprite.setPosition(x, y);
+    win->draw(sprite);
+}
+
+//================================================================
+//  прорисовка карточки гавани
+//================================================================
+void Draw_MaxGavan(sf::RenderWindow* win, int x, int y, float scale)
+{
+    sf::Sprite sprite;
+    sf::Texture texture;
+
+    texture.loadFromFile("img/Max_gavan.png");
     sprite.setTexture(texture);
 
     sprite.setScale(scale, scale);

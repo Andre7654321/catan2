@@ -97,6 +97,7 @@ extern int player_num;
 extern int bandit_Gecs;
 extern int max_road_owner;
 extern int max_army;        //владелец карточки самое большое войско
+extern int max_gavan;
 
 extern int Play_two_roads;     //флаг игры карты развития 2 дороги
 extern int Play_two_resurs;    //флаг игры карты развития 2 ресурса
@@ -820,6 +821,15 @@ void ServerClientStreamFunc(int index)
 					    }
 					    else max_army = 0;
 
+					//подсчет городов у гавани
+					max_gavan = 0;
+					for (int i = 1; i < 7; i++)
+					{
+						num = 0;
+						for (auto& elem : *nodePtr) { if (elem.type != -1 && elem.owner == i) num += elem.object; }
+						if (num > max_gavan && num >= 3)  max_gavan = i;
+					}
+
 					//подсчет армии у всех игроков и переход при необходимости
 					for (int i = 1; i < 7; i++)
 					    {
@@ -836,6 +846,7 @@ void ServerClientStreamFunc(int index)
 						if (way > Count_Road_Length(max_road_owner) && way >= 5)  max_road_owner = i;
 					    }
 					if (Count_Road_Length(max_road_owner) < 5) max_road_owner = 0;
+
 					Send_To_All_Info_MaxWayArmy(TO_ALL);
 			       }
 				if (Game_Step.current_step == 3)
@@ -1499,7 +1510,8 @@ void ClientHandler(int index)
 				      {
 					  int* intPtr = (int*)buff_tmp;
 					  max_road_owner = *intPtr;  intPtr++;
-					  max_army = *intPtr;
+					  max_army = *intPtr;         intPtr++;
+					  max_gavan = *intPtr;
 				      }
 				 if(Serv_Command == NET_COMMAND::PLAYER_CHANGE_AREA)
 				      {

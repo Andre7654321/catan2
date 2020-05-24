@@ -34,6 +34,7 @@ void DrawBandit(sf::RenderWindow* , std::vector<GECS>*);
 void DrawBanditOnCoord(sf::RenderWindow* , int, int, float);
 void Draw_MaxWay(sf::RenderWindow*, int, int, float scale);
 void Draw_MaxArmy(sf::RenderWindow* win, int x, int y, float scale);
+void Draw_MaxGavan(sf::RenderWindow* win, int x, int y, float scale);
 
 void DrawBigMessageBuff(sf::RenderWindow* win);
 void Big_Message_Imp_Card(sf::RenderWindow* ,int);
