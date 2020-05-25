@@ -221,7 +221,8 @@ int main()
                     std::cout << " ======== TEST node field ======== " << std::endl;
                     for (auto elem : *nodePtr)
                         {
-                        std::cout << i++ << "\tnode owner = " << elem.owner << "   object =  " <<  elem.object << std::endl;
+                        std::cout << i++ << "\tnode number = " << elem.number << "   type =  " << elem.type;
+                        std::cout  << "\tnode owner = " << elem.owner << "   object =  " <<  elem.object << std::endl;
                         if (i > 10)  break;
                         }
                     }

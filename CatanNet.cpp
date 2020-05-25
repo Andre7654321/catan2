@@ -780,7 +780,7 @@ void Send_Info_Nodes(int pl)
 void Send_Info_Nodes_Zip(int pl)
 {
 	//по 2 int значения на node
-	int max_size = (*nodePtr).size() * sizeof(int) * 3;     //max_size
+	int max_size = nodePtr->size() * sizeof(int) * 3;     //max_size
 	int size = 0;
 	char* buff = new char[max_size];
 
@@ -794,12 +794,14 @@ void Send_Info_Nodes_Zip(int pl)
 			*IntPtr = node.number;  IntPtr++;
 			*IntPtr = node.owner;   IntPtr++;
 			*IntPtr = node.object;  IntPtr++;
-			size += 3;
+			//std::cout << "\t SERVER ZIP--- " << node.number << "\tnode owner = " << node.owner << "\tobj =  " << node.object << std::endl;
+			size += 1;
 		    }
 	     }
+
 	IntPtr = (int*)buff;
-	*IntPtr = size;    //в первом слове массива количество узлов
-	size = (size + 1) * sizeof(int);
+	*IntPtr = size;   //в первом слове массива количество узлов
+	size = (size * 3 + 1) * sizeof(int);
 	CATAN_SERVER_Command(NET_COMMAND::NODE_ARRAY_ZIP, buff, size, pl);
 
 	delete[] buff;

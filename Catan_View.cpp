@@ -337,7 +337,7 @@ int flag_texture_road_set = 0;
 sf::Sprite sprite_road;
 
 //================================================================
-//  прорисовка 1 деревни по заданным координатам
+//  прорисовка 1 дороги
 //================================================================
 void DrawRoad(sf::RenderWindow* win, int player, int x, int y, float scale, int angle)
 {
@@ -993,6 +993,9 @@ void DrawRoads(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector
 
     start = rr.Node_num_start;
     end = rr.Node_num_end;
+    if (start < 0 || start > PtrNode->size()) continue;
+    if (end < 0 || end > PtrNode->size()) continue;
+
     int r_x = (PtrNode->at(start).n_x + PtrNode->at(end).n_x) / 2;
     int r_y = (PtrNode->at(start).n_y + PtrNode->at(end).n_y) / 2;
 
@@ -1005,10 +1008,10 @@ void DrawRoads(sf::RenderWindow* window, std::vector<NODE>* PtrNode, std::vector
         if (PtrNode->at(start).n_y > PtrNode->at(end).n_y) angle = -30;
         }
     if (PtrNode->at(start).n_x > PtrNode->at(end).n_x)
-    {
+        {
         if (PtrNode->at(start).n_y < PtrNode->at(end).n_y) angle = 150;
         if (PtrNode->at(start).n_y > PtrNode->at(end).n_y) angle = 210;
-    }
+        }
     
     DrawRoad(window, rr.owner, Draw_x(r_x), Draw_y(r_y), 0.3f, angle);
     }

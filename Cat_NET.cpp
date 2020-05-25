@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <malloc.h>
+#include <algorithm>
 
 #include "CatanNet.h"
 #include "Cat_NET.h"
@@ -713,8 +714,8 @@ void ServerClientStreamFunc(int index)
 			 //                                                                                                   -- SERVER
 			if (New_Command == NET_COMMAND::ASK_NODE_ARRAY)
 			     {
-				 //Send_Info_Nodes_Zip(index + 1);   //отправка узлов только запросившему игроку(№ на 1 больше номера соединения)
-				 Send_Info_Nodes(TO_ALL);
+				 Send_Info_Nodes_Zip(index + 1);   //отправка узлов только запросившему игроку(№ на 1 больше номера соединения)
+				 //Send_Info_Nodes(TO_ALL);
 			     }     
 			if (New_Command == NET_COMMAND::ASK_ROAD_ARRAY)
 			    {
@@ -734,7 +735,8 @@ void ServerClientStreamFunc(int index)
 			    {
 				int* intPtr = (int*)buff_tmp;
 				for (auto& node : *nodePtr)    {	node.owner = *intPtr;  intPtr++;  node.object = *intPtr; intPtr++;    }
-				Send_Info_Nodes(TO_ALL);
+				//Send_Info_Nodes(TO_ALL);
+				Send_Info_Nodes_Zip(TO_ALL);
 			    }
 			if (New_Command == NET_COMMAND::INFO_BANK_RESURS)  //серверу прислали - он все дублирует
 			    {
@@ -1400,22 +1402,39 @@ void ClientHandler(int index)
 					 int* intPtr = (int*)buff_tmp;
 					 int size = *intPtr;  intPtr++;
 
-					 for (auto& node : *nodePtr)
+					 //очищаем узлы перед получением данных
+					 for (auto& node : *nodePtr)     {	 node.owner = -1;	 node.object = -1;    }
+
+					 intPtr = (int*)buff_tmp; intPtr++;
+					 for(int i = 0;i < size;i++)
 					   {
-						 if (node.number == *intPtr)
-						     {
-							 intPtr++;
-							 node.owner = *intPtr;  intPtr++;
-							 node.object = *intPtr; intPtr++;
-						     }
-						 else   {	 node.owner = -1;  node.object = -1;    }
+						int number = *intPtr; intPtr++;
+						//std::cout << " Number == " << number << std::endl;
+						//вариант 1 - алгоритм поиска STL с предикатом
+						auto it = find_if(nodePtr->begin(), nodePtr->end(), [&number](NODE x)
+							 {
+						     return (x.number == number);
+							 } );
+						(*it).owner = *intPtr;   intPtr++;
+						(*it).object = *intPtr;   intPtr++;
+
+					   //вариант 2 - указатель итератор, чтобы  была не копия данных,  узлы располагаются по порядку в векторе
+					   //auto it = &(*nodePtr).at(number);
+					   //it->owner  = *intPtr;   intPtr++;
+					   //(*it).object = *intPtr;   intPtr++;
 					   }
 
 					 //-------------------------------------------------------------------------------------------------
+					 /*
 					 int ii = 0;
 					 std::cout << " ======== TEST node reciev from server ======== " << std::endl;
-					 for (auto elem : *nodePtr) { std::cout << ii++ << "\tnode owner = " << elem.owner << "  obj =  " << elem.object << std::endl;  if (ii > 10)  break; }
+					 std::cout << " Number fill nodes on server = " << size << std::endl;
+					 for (auto elem : *nodePtr)
+					       { std::cout << ii++ << "\tnode owner = " << elem.owner << "\tobj =  " << elem.object << "\tnumber =  " << elem.number <<std::endl;
+					         if (ii > 10)  break; 
+					       }
 					 std::cout << " END NODES  "  << "   size == " << nodePtr->size() << std::endl;
+					 */
 					 //--------------------------------------------------------------------------------------------------
 				     }
 				 if(Serv_Command == NET_COMMAND::ROAD_ARRAY)
