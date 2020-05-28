@@ -75,6 +75,18 @@ extern int ChangeBANK[7][12];
 //=======================================================
 // Запрос на выполнение обмена по заявке
 //=======================================================
+void Sent_Chart_Mess(std::string text)
+{
+ char msg[256];
+
+ strcpy(msg, text.c_str());
+ send(Connection, msg, sizeof(msg), NULL);
+ return;
+}
+
+//=======================================================
+// Запрос на выполнение обмена по заявке
+//=======================================================
 void AskToAcceptOffer(int s)
 {
 CATAN_CLIENT_Command(NET_COMMAND::ASK_ACCEPT_OFFER, (char*)&s, sizeof(int));

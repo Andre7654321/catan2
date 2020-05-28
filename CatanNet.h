@@ -33,6 +33,7 @@ void Send_To_All_Info_Resurs();
 void Send_Info_Change(int pl, int s);  
 void Send_Info_Game_Type(int pl);
 void Send_To_All_Info_Take_Card(int pl);
+void Sent_Chart_Mess(std::string text);
 
 //====================================================================
 

@@ -14,6 +14,8 @@
 #include "Catan_Step.h"
 #include "Catan_Count.h"
 
+#include "CAT_Text.h"
+
 // sfml-graphics-d.lib;sfml-window-d.lib;sfml-system-d.lib;%(AdditionalDependencies)  рабочее
 // smfl-graphics-d.lib; smfl-window-d.lib; smfl - system - d.lib; % (AdditionalDependencies)   smfl-graphics.lib  smfl-graphics.lib
 
@@ -106,7 +108,8 @@ int main()
 {
    setlocale(LC_ALL, "rus");
 
-   test();
+   //test();
+
    srand(time(NULL));
 
    //инициализация поля игры, гексов, дорог до запуска сетевых процедур
@@ -145,6 +148,12 @@ int main()
     sf::RectangleShape Road(sf::Vector2f(60.f, 7.f));   //параметры  ширина и высота
     Road.setOrigin(0, 4);  //смещаем центр разворота в середину толщины линии
 
+
+   //===Текстовое окно чата =================================================================
+    TextField tf(25);
+    if (connectionType != 's')  tf.setPosition(20, 130);
+          else  tf.setPosition(1200, 1200);
+
     int st;  //номер текущего шага
     //main cycle ===============================================================================================
     while (window.isOpen())
@@ -172,6 +181,9 @@ int main()
         while(window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)       window.close();
+
+            //текстовое поле - тест !!!
+            tf.handleInput(event);
 
             //отслеживает состояние клавиш, а не событие нажатия
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) field_scale -= 0.02;
@@ -609,6 +621,14 @@ int main()
             //если отпустили левую клавишу мышки
             if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left)
             {
+             auto pos = sf::Mouse::getPosition(window);
+             tf.setFocus(false);
+             if (tf.contains(sf::Vector2f(pos)))
+                 {
+                 //std::cout << "  Edit text selected  " << std::endl;
+                 tf.setFocus(true);
+                 }
+
                 //если отпустили левую клавишу мышки с бандитом
                 if (bandit_ismove == true)
                 {
@@ -838,6 +858,10 @@ int main()
             if (Big_Message != -1)  Big_Message_Imp_Card(&window, Big_Message);
 
             if (game_wait_reconnect) Game_Message(&window, "Wait for reconnect player");
+
+            
+            //тестовое текстовое поле
+            tf.draw(&window);
 
             window.display();
         }
